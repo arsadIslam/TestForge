@@ -14,7 +14,7 @@ use RuntimeException;
  *
  * Laravel calls render() automatically, so controllers need no try/catch:
  *  - web request → redirect back with the message flashed as 'error' (and the old input)
- *  - API request → 422 JSON { "message": "..." }
+ *  - API request (or any request expecting JSON) → 422 JSON { "message": "..." }
  *
  * ShouldntReport: these are expected user-facing outcomes, not bugs, so they are not logged.
  */
@@ -22,7 +22,7 @@ class BusinessRuleException extends RuntimeException implements ShouldntReport
 {
     public function render(Request $request): RedirectResponse|JsonResponse
     {
-        if ($request->expectsJson()) {
+        if ($request->expectsJson() || $request->is('api/*')) {
             return response()->json(['message' => $this->getMessage()], 422);
         }
 

@@ -103,8 +103,9 @@ class AttemptController extends Controller implements HasMiddleware
 
         $message = $attempt->status === AttemptStatus::AutoSubmitted
             ? 'Time was up, so your attempt was submitted automatically.'
-            : 'Your test has been submitted. Your result will appear once it has been marked.';
+            : 'Your test has been submitted.';
 
-        return redirect()->route('student.tests.index')->with('success', $message);
+        // The result page shows "being marked" until the EvaluateAttempt job has run.
+        return redirect()->route('student.attempts.result', $attempt)->with('success', $message);
     }
 }

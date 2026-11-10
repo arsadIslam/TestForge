@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AttemptStatus;
 use App\Enums\TestStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -69,6 +70,24 @@ class Test extends Model
     public function results(): HasMany
     {
         return $this->hasMany(Result::class);
+    }
+
+    /**
+     * Adds one student's attempt info to each test, without N+1:
+     *  - my_attempts_count: a correlated COUNT sub-select (withCount with a constraint + alias)
+     *  - attempts: only that student's in-progress attempt, eager loaded (for "Resume")
+     */
+    public function scopeWithAttemptInfoFor(Builder $query, int $studentId): void
+    {
+        $query
+            ->withCount([
+                'questions',
+                'attempts as my_attempts_count' => fn (Builder $q) => $q->where('user_id', $studentId),
+            ])
+            ->with(['attempts' => fn (HasMany $q) => $q
+                ->where('user_id', $studentId)
+                ->where('status', AttemptStatus::InProgress),
+            ]);
     }
 
     public function scopePublished(Builder $query): void

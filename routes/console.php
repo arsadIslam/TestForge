@@ -3,8 +3,21 @@
 use Illuminate\Support\Facades\Schedule;
 
 /*
-| Runs via one cron entry: * * * * * php /path/to/artisan schedule:run
-| withoutOverlapping(): if a run takes longer than a minute, the next one is skipped
-| instead of starting a second copy (uses a cache lock — the database cache supports it).
+| Everything here runs from ONE cron entry:
+|   * * * * * cd /path/to/testforge && php artisan schedule:run >> /dev/null 2>&1
+|
+| withoutOverlapping(): if a run is still going when the next minute starts, the next
+| one is skipped instead of starting a second copy (a cache lock; the database cache
+| supports locks).
 */
+
+// Close attempts whose time ran out (and queue their scoring).
 Schedule::command('attempts:auto-submit')->everyMinute()->withoutOverlapping();
+
+// Shared hosting: no long-running worker, so drain the queue once a minute and exit.
+// --max-time keeps each run under a minute so runs never pile up.
+if (config('queue.run_via_scheduler')) {
+    Schedule::command('queue:work --stop-when-empty --max-time=55 --tries=3')
+        ->everyMinute()
+        ->withoutOverlapping();
+}

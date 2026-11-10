@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Run the worker from the scheduler (shared hosting)
+    |--------------------------------------------------------------------------
+    |
+    | On cPanel there is usually no way to keep `php artisan queue:work` running.
+    | When true, routes/console.php starts a short-lived worker every minute
+    | (from the single `schedule:run` cron entry) that drains the queue and exits.
+    | Leave false where a real worker / Supervisor runs the queue.
+    |
+    */
+
+    'run_via_scheduler' => (bool) env('QUEUE_RUN_VIA_SCHEDULER', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |

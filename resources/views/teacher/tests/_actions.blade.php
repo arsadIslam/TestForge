@@ -1,5 +1,10 @@
 {{-- Status actions for one test; each button only shows if the policy allows it. --}}
 <div class="flex flex-wrap items-center justify-end gap-3">
+    @if ($test->status !== \App\Enums\TestStatus::Draft)
+        @can('viewAnalytics', $test)
+            <a href="{{ route('teacher.tests.analytics', $test) }}" class="text-indigo-600 hover:underline">Analytics</a>
+        @endcan
+    @endif
     @can('update', $test)
         <a href="{{ route('teacher.tests.questions.index', $test) }}" class="text-indigo-600 hover:underline">Questions</a>
         <a href="{{ route('teacher.tests.edit', $test) }}" class="text-indigo-600 hover:underline">Edit</a>

@@ -2,13 +2,18 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Web\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Web\Admin\SubjectController as AdminSubjectController;
 use App\Http\Controllers\Web\Admin\TopicController as AdminTopicController;
 use App\Http\Controllers\Web\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Web\DashboardRedirectController;
+use App\Http\Controllers\Web\Student\AnalyticsController as StudentAnalyticsController;
 use App\Http\Controllers\Web\Student\AttemptController as StudentAttemptController;
 use App\Http\Controllers\Web\Student\DashboardController as StudentDashboardController;
+use App\Http\Controllers\Web\Student\LeaderboardController as StudentLeaderboardController;
+use App\Http\Controllers\Web\Student\ResultController as StudentResultController;
 use App\Http\Controllers\Web\Student\TestController as StudentTestController;
+use App\Http\Controllers\Web\Teacher\AnalyticsController as TeacherAnalyticsController;
 use App\Http\Controllers\Web\Teacher\DashboardController as TeacherDashboardController;
 use App\Http\Controllers\Web\Teacher\QuestionController as TeacherQuestionController;
 use App\Http\Controllers\Web\Teacher\TestController as TeacherTestController;
@@ -34,6 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::resource('subjects', AdminSubjectController::class)->except('show');
         Route::resource('topics', AdminTopicController::class)->except('show');
+
+        Route::get('reports', [AdminReportController::class, 'index'])->name('reports.index');
+        Route::get('reports/tests/{test}', [AdminReportController::class, 'show'])->name('reports.show');
     });
 
     // ---- Teacher area: /teacher/*, route names teacher.* ----
@@ -45,6 +53,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('tests', TeacherTestController::class);
         Route::patch('tests/{test}/publish', [TeacherTestController::class, 'publish'])->name('tests.publish');
         Route::patch('tests/{test}/archive', [TeacherTestController::class, 'archive'])->name('tests.archive');
+        Route::get('tests/{test}/analytics', [TeacherAnalyticsController::class, 'show'])->name('tests.analytics');
 
         // Test builder. scopeBindings(): {question} is looked up through $test->questions(),
         // so a question that isn't in this test is a 404.
@@ -69,6 +78,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('attempts/{attempt}/answers/{question}', [StudentAttemptController::class, 'saveAnswer'])
             ->name('attempts.answers.save')->middleware('throttle:120,1');
         Route::post('attempts/{attempt}/submit', [StudentAttemptController::class, 'submit'])->name('attempts.submit');
+        Route::get('attempts/{attempt}/result', [StudentResultController::class, 'show'])->name('attempts.result');
+
+        Route::get('tests/{test:slug}/leaderboard', [StudentLeaderboardController::class, 'show'])->name('tests.leaderboard');
+        Route::get('analytics', StudentAnalyticsController::class)->name('analytics');
     });
 });
 

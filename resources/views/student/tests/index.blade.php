@@ -19,7 +19,10 @@
                             @endif
                         </p>
                     </div>
-                    <div class="shrink-0">@include('student.tests._start-button')</div>
+                    <div class="flex shrink-0 items-center gap-4">
+                        <a href="{{ route('student.tests.leaderboard', $test) }}" class="text-sm text-gray-600 hover:underline">Leaderboard</a>
+                        @include('student.tests._start-button')
+                    </div>
                 </div>
             @empty
                 <div class="bg-white p-8 text-center text-gray-500 shadow-sm sm:rounded-lg">No tests are open right now. Check back later.</div>

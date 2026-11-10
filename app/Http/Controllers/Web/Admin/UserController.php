@@ -58,6 +58,11 @@ class UserController extends Controller
         $user->is_active = ! $user->is_active;
         $user->save();
 
+        if (! $user->is_active) {
+            // Also cut off the REST API immediately: revoke every Sanctum token they hold.
+            $user->tokens()->delete();
+        }
+
         $state = $user->is_active ? 'activated' : 'deactivated';
 
         return back()->with('success', "{$user->name} has been {$state}.");

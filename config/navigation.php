@@ -20,6 +20,7 @@ return [
         ['label' => 'Users', 'route' => 'admin.users.index', 'active' => 'admin.users.*'],
         ['label' => 'Subjects', 'route' => 'admin.subjects.index', 'active' => 'admin.subjects.*'],
         ['label' => 'Topics', 'route' => 'admin.topics.index', 'active' => 'admin.topics.*'],
+        ['label' => 'Reports', 'route' => 'admin.reports.index', 'active' => 'admin.reports.*'],
     ],
 
     'teacher' => [
@@ -31,5 +32,6 @@ return [
     'student' => [
         ['label' => 'Dashboard', 'route' => 'student.dashboard', 'active' => 'student.dashboard'],
         ['label' => 'Tests', 'route' => 'student.tests.index', 'active' => 'student.tests.*'],
+        ['label' => 'My analytics', 'route' => 'student.analytics', 'active' => 'student.analytics'],
     ],
 ];
