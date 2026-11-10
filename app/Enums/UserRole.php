@@ -12,4 +12,16 @@ enum UserRole: string
     {
         return ucfirst($this->value);
     }
+
+    /**
+     * Named route each role lands on after login.
+     */
+    public function homeRoute(): string
+    {
+        return match ($this) {
+            self::Admin => 'admin.dashboard',
+            self::Teacher => 'teacher.dashboard',
+            self::Student => 'student.dashboard',
+        };
+    }
 }

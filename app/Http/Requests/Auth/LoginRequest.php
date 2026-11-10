@@ -50,6 +50,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Correct password, but the admin has deactivated this account: undo the login.
+        if (! Auth::user()->is_active) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => __('Your account has been deactivated. Please contact the administrator.'),
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

@@ -46,6 +46,7 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // Self-registered users are always students (role is not fillable; DB default 'student').
+        return redirect(route($user->role->homeRoute(), absolute: false));
     }
 }

@@ -2,16 +2,17 @@
 
 namespace App\View\Components;
 
-use Illuminate\View\Component;
-use Illuminate\View\View;
+use App\Enums\UserRole;
+use Illuminate\Support\Facades\Auth;
 
-class AppLayout extends Component
+/**
+ * Breeze's <x-app-layout>, kept for pages every role shares (e.g. Profile):
+ * it shows the navigation of whoever is logged in.
+ */
+class AppLayout extends RoleLayout
 {
-    /**
-     * Get the view / contents that represents the component.
-     */
-    public function render(): View
+    protected function role(): UserRole
     {
-        return view('layouts.app');
+        return Auth::user()->role;
     }
 }

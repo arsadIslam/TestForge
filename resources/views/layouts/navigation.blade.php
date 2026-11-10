@@ -1,20 +1,30 @@
+{{-- Expects $role (App\Enums\UserRole) and $navLinks (array from config/navigation.php), passed by RoleLayout. --}}
 <nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
             <div class="flex">
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
+                <!-- Logo + role badge -->
+                <div class="shrink-0 flex items-center gap-3">
+                    <a href="{{ route($role->homeRoute()) }}" class="flex items-center gap-2">
                         <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
+                        <span class="font-semibold text-gray-800">{{ config('app.name') }}</span>
                     </a>
+                    <span @class([
+                        'rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
+                        'bg-rose-100 text-rose-700' => $role === \App\Enums\UserRole::Admin,
+                        'bg-indigo-100 text-indigo-700' => $role === \App\Enums\UserRole::Teacher,
+                        'bg-emerald-100 text-emerald-700' => $role === \App\Enums\UserRole::Student,
+                    ])>{{ $role->label() }}</span>
                 </div>
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
-                    </x-nav-link>
+                    @foreach ($navLinks as $link)
+                        <x-nav-link :href="route($link['route'])" :active="request()->routeIs($link['active'])">
+                            {{ __($link['label']) }}
+                        </x-nav-link>
+                    @endforeach
                 </div>
             </div>
 
@@ -67,9 +77,11 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                {{ __('Dashboard') }}
-            </x-responsive-nav-link>
+            @foreach ($navLinks as $link)
+                <x-responsive-nav-link :href="route($link['route'])" :active="request()->routeIs($link['active'])">
+                    {{ __($link['label']) }}
+                </x-responsive-nav-link>
+            @endforeach
         </div>
 
         <!-- Responsive Settings Options -->

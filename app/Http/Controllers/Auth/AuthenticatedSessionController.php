@@ -28,7 +28,9 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // intended(): if the guest was bounced to /login from a protected page, go back there;
+        // otherwise land on the dashboard for this user's role.
+        return redirect()->intended(route($request->user()->role->homeRoute(), absolute: false));
     }
 
     /**
