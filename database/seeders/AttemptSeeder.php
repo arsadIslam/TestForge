@@ -9,6 +9,7 @@ use App\Models\Attempt;
 use App\Models\Question;
 use App\Models\Test;
 use App\Models\User;
+use App\Services\ScoringService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -18,11 +19,9 @@ use Illuminate\Support\Facades\DB;
  * Completed (evaluated) attempts with answers and results, so the leaderboard
  * and analytics pages have data from day one.
  *
- * Results are derived from the seeded answers (not random numbers), so the
- * leaderboard, subject accuracy and "toughest questions" reports all agree.
- *
- * NOTE: isExactMatch() is a temporary copy of the scoring rule. Step 9 replaces
- * it with ScoringService so there is one source of truth.
+ * Answers are generated, then scored by ScoringService (one source of truth for the
+ * scoring rule), so the leaderboard, subject accuracy and "toughest questions"
+ * reports all agree with each other.
  */
 class AttemptSeeder extends Seeder
 {
@@ -38,6 +37,8 @@ class AttemptSeeder extends Seeder
 
     /** @var array<int, float> user_id => ability (0–1) */
     private array $abilities = [];
+
+    public function __construct(private ScoringService $scoring) {}
 
     public function run(): void
     {
@@ -111,6 +112,11 @@ class AttemptSeeder extends Seeder
         });
     }
 
+    /**
+     * Seeds what a real student would leave behind — a submitted attempt with answers —
+     * and then scores it with ScoringService, the same code the EvaluateAttempt job runs.
+     * The seeder itself contains no scoring logic.
+     */
     private function createEvaluatedAttempt(Test $test, User $student, int $attemptNo, Carbon $startedAt, float $ability): void
     {
         $durationSeconds = $test->duration_minutes * 60;
@@ -121,46 +127,26 @@ class AttemptSeeder extends Seeder
             'test_id' => $test->id,
             'user_id' => $student->id,
             'attempt_no' => $attemptNo,
-            'status' => AttemptStatus::Evaluated,
+            'status' => AttemptStatus::Submitted,
             'started_at' => $startedAt,
             'expires_at' => $startedAt->copy()->addMinutes($test->duration_minutes),
             'submitted_at' => $submittedAt,
             'ip_address' => fake()->ipv4(),
         ]);
 
-        $score = 0.0;
-        $correct = 0;
-        $wrong = 0;
-        $skipped = 0;
         $optionRows = [];
 
         foreach ($test->questions as $question) {
             if (fake()->boolean((int) (self::SKIP_RATE * 100))) {
-                $skipped++; // unanswered → no attempt_answers row, 0 marks
-
-                continue;
+                continue; // unanswered → no attempt_answers row
             }
-
-            $selectedIds = $this->chooseOptions($question, $ability);
-            $correctIds = $question->options->where('is_correct', true)->pluck('id')->all();
-            $isCorrect = $this->isExactMatch($selectedIds, $correctIds);
-
-            // Marks come from the pivot (copied when attached), not from the question itself.
-            $marks = $isCorrect
-                ? (float) $question->pivot->marks
-                : -(float) $question->pivot->negative_marks;
-
-            $isCorrect ? $correct++ : $wrong++;
-            $score += $marks;
 
             $answer = $attempt->answers()->create([
                 'question_id' => $question->id,
-                'is_correct' => $isCorrect,
-                'marks_awarded' => $marks,
                 'answered_at' => fake()->dateTimeBetween($startedAt, $submittedAt),
             ]);
 
-            foreach ($selectedIds as $optionId) {
+            foreach ($this->chooseOptions($question, $ability) as $optionId) {
                 $optionRows[] = ['attempt_answer_id' => $answer->id, 'question_option_id' => $optionId];
             }
         }
@@ -168,20 +154,10 @@ class AttemptSeeder extends Seeder
         // One bulk INSERT for all selected options of this attempt.
         DB::table('attempt_answer_options')->insert($optionRows);
 
-        $answered = $correct + $wrong;
+        $result = $this->scoring->evaluate($attempt);
 
-        $attempt->result()->create([
-            'test_id' => $test->id,
-            'user_id' => $student->id,
-            'score' => $score,
-            'correct_count' => $correct,
-            'wrong_count' => $wrong,
-            'skipped_count' => $skipped,
-            'accuracy' => $answered > 0 ? round($correct / $answered * 100, 2) : 0,
-            'time_taken_seconds' => $timeTaken,
-            'is_passed' => $score >= (float) $test->pass_marks,
-            'evaluated_at' => $submittedAt->copy()->addSeconds(fake()->numberBetween(2, 30)),
-        ]);
+        // Back-date the evaluation to just after submission, as the queue would have done.
+        $result->forceFill(['evaluated_at' => $submittedAt->copy()->addSeconds(fake()->numberBetween(2, 30))])->save();
     }
 
     /**
@@ -211,19 +187,5 @@ class AttemptSeeder extends Seeder
         return fake()->boolean()
             ? $correctIds->random($correctIds->count() - 1)->all()
             : $correctIds->push($wrongIds->random())->all();
-    }
-
-    /**
-     * Correct only if the selected set equals the correct set (order does not matter).
-     *
-     * @param  list<int>  $selectedIds
-     * @param  list<int>  $correctIds
-     */
-    private function isExactMatch(array $selectedIds, array $correctIds): bool
-    {
-        sort($selectedIds);
-        sort($correctIds);
-
-        return $selectedIds === $correctIds;
     }
 }

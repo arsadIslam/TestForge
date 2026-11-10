@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AttemptStatus;
 use App\Enums\QuestionType;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\EvaluateAttempt;
 use App\Models\Attempt;
 use App\Models\AttemptAnswer;
 use App\Models\Question;
@@ -137,7 +138,7 @@ class AttemptService
     /**
      * Student clicks "Submit" (or the timer reaches zero in the browser).
      * The lock makes in_progress → submitted happen exactly once, so a double click
-     * can never submit — or, from Step 9, score — the attempt twice.
+     * can never submit — or score — the attempt twice.
      */
     public function submit(Attempt $attempt): Attempt
     {
@@ -172,6 +173,32 @@ class AttemptService
     /**
      * Must be called inside a transaction (the caller already holds the attempt's lock).
      */
+    /**
+     * Called by the scheduled attempts:auto-submit command for each expired attempt.
+     * Re-checked under the lock: if the student submitted a moment earlier, nothing happens.
+     *
+     * @return bool true if this call closed the attempt
+     */
+    public function autoSubmitIfExpired(Attempt $attempt): bool
+    {
+        return DB::transaction(function () use ($attempt): bool {
+            $locked = Attempt::query()->whereKey($attempt->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== AttemptStatus::InProgress || ! $locked->expires_at->isPast()) {
+                return false;
+            }
+
+            $this->finish($locked, auto: true);
+
+            return true;
+        });
+    }
+
+    /**
+     * in_progress → submitted / auto_submitted, then queue the scoring job.
+     * Must be called inside a transaction, by a caller that holds the attempt's lock —
+     * so this transition, and therefore the job dispatch, happens exactly once.
+     */
     private function finish(Attempt $attempt, bool $auto): Attempt
     {
         $attempt->forceFill([
@@ -179,6 +206,9 @@ class AttemptService
             // An auto-submitted attempt ends at its deadline, not when we noticed it.
             'submitted_at' => $auto ? $attempt->expires_at : now(),
         ])->save();
+
+        // EvaluateAttempt calls afterCommit(): it is only pushed once this transaction commits.
+        EvaluateAttempt::dispatch($attempt);
 
         return $attempt;
     }
