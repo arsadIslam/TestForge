@@ -6,7 +6,9 @@ use App\Http\Controllers\Web\Admin\SubjectController as AdminSubjectController;
 use App\Http\Controllers\Web\Admin\TopicController as AdminTopicController;
 use App\Http\Controllers\Web\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Web\DashboardRedirectController;
+use App\Http\Controllers\Web\Student\AttemptController as StudentAttemptController;
 use App\Http\Controllers\Web\Student\DashboardController as StudentDashboardController;
+use App\Http\Controllers\Web\Student\TestController as StudentTestController;
 use App\Http\Controllers\Web\Teacher\DashboardController as TeacherDashboardController;
 use App\Http\Controllers\Web\Teacher\QuestionController as TeacherQuestionController;
 use App\Http\Controllers\Web\Teacher\TestController as TeacherTestController;
@@ -57,6 +59,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ---- Student area: /student/*, route names student.* ----
     Route::prefix('student')->name('student.')->middleware('role:student')->group(function () {
         Route::get('/', StudentDashboardController::class)->name('dashboard');
+
+        Route::get('tests', [StudentTestController::class, 'index'])->name('tests.index');
+        Route::get('tests/{slug}', [StudentTestController::class, 'show'])->name('tests.show');
+        Route::post('tests/{test:slug}/attempts', [StudentAttemptController::class, 'store'])->name('attempts.store');
+
+        Route::get('attempts/{attempt}', [StudentAttemptController::class, 'show'])->name('attempts.show');
+        // Auto-save is called repeatedly by the browser, so it gets its own rate limit (per user per minute).
+        Route::put('attempts/{attempt}/answers/{question}', [StudentAttemptController::class, 'saveAnswer'])
+            ->name('attempts.answers.save')->middleware('throttle:120,1');
+        Route::post('attempts/{attempt}/submit', [StudentAttemptController::class, 'submit'])->name('attempts.submit');
     });
 });
 

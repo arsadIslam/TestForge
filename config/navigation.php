@@ -30,5 +30,6 @@ return [
 
     'student' => [
         ['label' => 'Dashboard', 'route' => 'student.dashboard', 'active' => 'student.dashboard'],
+        ['label' => 'Tests', 'route' => 'student.tests.index', 'active' => 'student.tests.*'],
     ],
 ];
