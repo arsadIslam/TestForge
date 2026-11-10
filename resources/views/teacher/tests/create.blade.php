@@ -1,0 +1,18 @@
+<x-teacher-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">{{ __('New test') }}</h2>
+    </x-slot>
+
+    <div class="py-8">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <form method="POST" action="{{ route('teacher.tests.store') }}" class="space-y-6 bg-white p-6 shadow-sm sm:rounded-lg">
+                @csrf
+                @include('teacher.tests._form')
+                <div class="flex items-center gap-4 border-t pt-6">
+                    <x-primary-button>Create and add questions</x-primary-button>
+                    <a href="{{ route('teacher.tests.index') }}" class="text-sm text-gray-600 underline">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</x-teacher-layout>

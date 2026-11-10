@@ -9,6 +9,8 @@ use App\Http\Controllers\Web\DashboardRedirectController;
 use App\Http\Controllers\Web\Student\DashboardController as StudentDashboardController;
 use App\Http\Controllers\Web\Teacher\DashboardController as TeacherDashboardController;
 use App\Http\Controllers\Web\Teacher\QuestionController as TeacherQuestionController;
+use App\Http\Controllers\Web\Teacher\TestController as TeacherTestController;
+use App\Http\Controllers\Web\Teacher\TestQuestionController as TeacherTestQuestionController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -37,6 +39,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', TeacherDashboardController::class)->name('dashboard');
 
         Route::resource('questions', TeacherQuestionController::class);
+
+        Route::resource('tests', TeacherTestController::class);
+        Route::patch('tests/{test}/publish', [TeacherTestController::class, 'publish'])->name('tests.publish');
+        Route::patch('tests/{test}/archive', [TeacherTestController::class, 'archive'])->name('tests.archive');
+
+        // Test builder. scopeBindings(): {question} is looked up through $test->questions(),
+        // so a question that isn't in this test is a 404.
+        Route::prefix('tests/{test}/questions')->name('tests.questions.')->scopeBindings()->group(function () {
+            Route::get('/', [TeacherTestQuestionController::class, 'index'])->name('index');
+            Route::post('/', [TeacherTestQuestionController::class, 'store'])->name('store');
+            Route::put('order', [TeacherTestQuestionController::class, 'reorder'])->name('reorder');
+            Route::delete('{question}', [TeacherTestQuestionController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // ---- Student area: /student/*, route names student.* ----

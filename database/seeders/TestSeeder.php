@@ -2,13 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Enums\TestStatus;
 use App\Models\Question;
 use App\Models\Subject;
 use App\Models\Test;
 use App\Models\User;
+use App\Services\TestService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 /**
  * Three published tests. AttemptSeeder gives the first two a history of attempts;
@@ -56,6 +55,9 @@ class TestSeeder extends Seeder
     }
 
     /**
+     * Goes through TestService — the same code path as the teacher UI — so seeded
+     * tests obey the same rules (copied pivot marks, total_marks from the pivot, publish checks).
+     *
      * @param  list<string>  $subjects  subject slugs to draw questions from
      */
     private function createTest(
@@ -69,9 +71,10 @@ class TestSeeder extends Seeder
         ?\DateTimeInterface $endsAt,
         bool $shuffle = false,
     ): Test {
-        $test = $teacher->tests()->create([
+        $service = app(TestService::class);
+
+        $test = $service->create($teacher, [
             'title' => $title,
-            'slug' => Str::slug($title),
             'description' => 'Practice test covering '.implode(', ', array_map('ucwords', str_replace('-', ' ', $subjects))).'.',
             'duration_minutes' => $durationMinutes,
             'pass_marks' => 0, // set below, once total_marks is known
@@ -83,32 +86,21 @@ class TestSeeder extends Seeder
 
         $subjectIds = Subject::whereIn('slug', $subjects)->pluck('id');
 
-        $questions = Question::active()
+        $questionIds = Question::active()
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->inRandomOrder()
             ->limit($questionCount)
-            ->get();
+            ->pluck('id')
+            ->all();
 
-        // Copy marks/negative_marks into the pivot so later edits to a question never change this test.
-        $test->questions()->attach(
-            $questions->values()->mapWithKeys(fn (Question $question, int $index) => [
-                $question->id => [
-                    'sort_order' => $index + 1,
-                    'marks' => $question->marks,
-                    'negative_marks' => $question->negative_marks,
-                ],
-            ])->all()
-        );
+        $service->attachQuestions($test, $questionIds);
 
-        // total_marks always comes from the pivot rows — the single source of truth.
-        $totalMarks = (float) $test->questions()->sum('test_question.marks');
+        $test->refresh();
+        $service->update($test, ['pass_marks' => round((float) $test->total_marks * 0.4, 2)]);
+        $service->publish($test);
 
-        $test->forceFill([
-            'total_marks' => $totalMarks,
-            'pass_marks' => round($totalMarks * 0.4, 2),
-            'status' => TestStatus::Published,
-            'published_at' => $startsAt,
-        ])->save();
+        // Back-date publication so it comes before the seeded attempts (7–13 days ago).
+        $test->refresh()->forceFill(['published_at' => $startsAt])->save();
 
         return $test;
     }

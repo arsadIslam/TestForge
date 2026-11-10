@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Teacher;
 
 use App\Enums\Difficulty;
 use App\Enums\QuestionType;
+use App\Http\Controllers\Concerns\ReadsQuestionFilters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teacher\StoreQuestionRequest;
 use App\Http\Requests\Teacher\UpdateQuestionRequest;
@@ -11,8 +12,6 @@ use App\Models\Question;
 use App\Models\Subject;
 use App\Models\Tag;
 use App\Services\QuestionService;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -21,6 +20,8 @@ use Illuminate\View\View;
 
 class QuestionController extends Controller implements HasMiddleware
 {
+    use ReadsQuestionFilters;
+
     /**
      * Every action is authorized against QuestionPolicy before it runs.
      * 'question' refers to the {question} route parameter.
@@ -38,24 +39,18 @@ class QuestionController extends Controller implements HasMiddleware
 
     public function index(Request $request): View
     {
-        $filters = [
-            'topic_id' => $request->integer('topic_id') ?: null,
-            'difficulty' => $request->enum('difficulty', Difficulty::class),
-            'tag_id' => $request->integer('tag_id') ?: null,
-        ];
+        $filters = $this->questionFilters($request);
 
         $questions = Question::query()
             ->with(['topic.subject', 'tags', 'creator:id,name']) // 4 queries for the page, however many rows
-            ->when($filters['topic_id'], fn (Builder $q, int $id) => $q->where('topic_id', $id))
-            ->when($filters['difficulty'], fn (Builder $q, Difficulty $d) => $q->where('difficulty', $d))
-            ->when($filters['tag_id'], fn (Builder $q, int $id) => $q->whereHas('tags', fn (Builder $t) => $t->whereKey($id)))
+            ->filter($filters)
             ->latest('id')
             ->paginate(15)
             ->withQueryString();
 
         return view('teacher.questions.index', [
             'questions' => $questions,
-            'subjects' => $this->subjectsWithTopics(),
+            'subjects' => Subject::withSortedTopics()->get(),
             'tags' => Tag::orderBy('name')->pluck('name', 'id'),
             'difficulties' => Difficulty::cases(),
             'filters' => [...$filters, 'difficulty' => $filters['difficulty']?->value],
@@ -137,22 +132,12 @@ class QuestionController extends Controller implements HasMiddleware
             'locked' => $question->exists && $question->isLocked(),
             'options' => $options,
             'tagString' => $question->exists ? $question->tags->pluck('name')->implode(', ') : '',
-            'subjects' => $this->subjectsWithTopics(),
+            'subjects' => Subject::withSortedTopics()->get(),
             'existingTags' => Tag::orderBy('name')->pluck('name'),
             'types' => QuestionType::cases(),
             'difficulties' => Difficulty::cases(),
             'minOptions' => StoreQuestionRequest::MIN_OPTIONS,
             'maxOptions' => StoreQuestionRequest::MAX_OPTIONS,
         ];
-    }
-
-    /**
-     * Subjects with their topics, for <optgroup> dropdowns. Two queries in total.
-     *
-     * @return Collection<int, Subject>
-     */
-    private function subjectsWithTopics(): Collection
-    {
-        return Subject::with(['topics' => fn ($q) => $q->orderBy('name')])->orderBy('name')->get();
     }
 }

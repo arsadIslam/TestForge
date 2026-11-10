@@ -85,4 +85,18 @@ class Question extends Model
     {
         $query->where('is_active', true);
     }
+
+    /**
+     * Question-bank filters, shared by the bank list and the test builder's picker.
+     *
+     * @param  array{topic_id?: ?int, difficulty?: ?Difficulty, tag_id?: ?int}  $filters
+     */
+    public function scopeFilter(Builder $query, array $filters): void
+    {
+        $query
+            ->when($filters['topic_id'] ?? null, fn (Builder $q, int $id) => $q->where('topic_id', $id))
+            ->when($filters['difficulty'] ?? null, fn (Builder $q, Difficulty $d) => $q->where('difficulty', $d))
+            // whereHas → WHERE EXISTS (SELECT ... FROM tags JOIN question_tag ...)
+            ->when($filters['tag_id'] ?? null, fn (Builder $q, int $id) => $q->whereHas('tags', fn (Builder $t) => $t->whereKey($id)));
+    }
 }

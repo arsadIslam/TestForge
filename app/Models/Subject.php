@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,6 +16,14 @@ class Subject extends Model
         'name',
         'slug',
     ];
+
+    /**
+     * Subjects A–Z with their topics A–Z eager loaded (2 queries) — for grouped topic dropdowns.
+     */
+    public function scopeWithSortedTopics(Builder $query): void
+    {
+        $query->with(['topics' => fn (HasMany $topics) => $topics->orderBy('name')])->orderBy('name');
+    }
 
     public function topics(): HasMany
     {

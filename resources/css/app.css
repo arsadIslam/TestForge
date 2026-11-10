@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Hide Alpine-controlled elements until Alpine has initialised (no flash of e.g. "Unsaved order"). */
+[x-cloak] {
+    display: none !important;
+}
