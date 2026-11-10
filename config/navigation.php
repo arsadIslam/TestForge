@@ -17,6 +17,9 @@
 return [
     'admin' => [
         ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'active' => 'admin.dashboard'],
+        ['label' => 'Users', 'route' => 'admin.users.index', 'active' => 'admin.users.*'],
+        ['label' => 'Subjects', 'route' => 'admin.subjects.index', 'active' => 'admin.subjects.*'],
+        ['label' => 'Topics', 'route' => 'admin.topics.index', 'active' => 'admin.topics.*'],
     ],
 
     'teacher' => [
