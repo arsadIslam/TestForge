@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Difficulty;
 use App\Enums\QuestionType;
+use App\Enums\TestStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -67,6 +68,17 @@ class Question extends Model
         // Table name is explicit: Laravel's alphabetical default would be "question_test".
         return $this->belongsToMany(Test::class, 'test_question')
             ->withPivot('sort_order', 'marks', 'negative_marks');
+    }
+
+    /**
+     * A question used in a published or archived test has a frozen answer key
+     * (type, options, which options are correct): students may already have
+     * answered it, and attempt_answer_options points at these exact option rows.
+     * Tests only move draft → published → archived, so once locked, always locked.
+     */
+    public function isLocked(): bool
+    {
+        return $this->tests()->where('tests.status', '!=', TestStatus::Draft)->exists();
     }
 
     public function scopeActive(Builder $query): void

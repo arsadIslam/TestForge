@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Web\DashboardRedirectController;
 use App\Http\Controllers\Web\Student\DashboardController as StudentDashboardController;
 use App\Http\Controllers\Web\Teacher\DashboardController as TeacherDashboardController;
+use App\Http\Controllers\Web\Teacher\QuestionController as TeacherQuestionController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -34,6 +35,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ---- Teacher area: /teacher/*, route names teacher.* ----
     Route::prefix('teacher')->name('teacher.')->middleware('role:teacher')->group(function () {
         Route::get('/', TeacherDashboardController::class)->name('dashboard');
+
+        Route::resource('questions', TeacherQuestionController::class);
     });
 
     // ---- Student area: /student/*, route names student.* ----

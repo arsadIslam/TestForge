@@ -24,6 +24,7 @@ return [
 
     'teacher' => [
         ['label' => 'Dashboard', 'route' => 'teacher.dashboard', 'active' => 'teacher.dashboard'],
+        ['label' => 'Question bank', 'route' => 'teacher.questions.index', 'active' => 'teacher.questions.*'],
     ],
 
     'student' => [
