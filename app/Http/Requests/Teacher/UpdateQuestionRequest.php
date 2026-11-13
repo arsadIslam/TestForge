@@ -11,9 +11,9 @@ class UpdateQuestionRequest extends StoreQuestionRequest
     private ?bool $locked = null;
 
     /**
-     * Locked question (in a published test): type and options are not validated at all
-     * (the form doesn't send them and QuestionService ignores them). The question's own
-     * image can still change, like its text.
+     * Locked question (in a published test): options are not validated at all (the form
+     * doesn't send them and QuestionService ignores them), so its type can't change either.
+     * The question's own image can still change, like its text.
      *
      * An option id must belong to the question being edited, so a crafted request
      * cannot move another question's option.
@@ -25,8 +25,6 @@ class UpdateQuestionRequest extends StoreQuestionRequest
         $rules = parent::rules();
 
         if ($this->isLocked()) {
-            unset($rules['type']);
-
             return $rules;
         }
 
@@ -34,6 +32,17 @@ class UpdateQuestionRequest extends StoreQuestionRequest
             ->where('question_id', $this->question()->id);
 
         return $rules;
+    }
+
+    /**
+     * Where to go after saving: the page that sent the teacher here (e.g. the test builder),
+     * but ONLY if it is inside this app's teacher area — never an outside URL (open redirect).
+     */
+    public function returnTo(): ?string
+    {
+        $url = (string) $this->input('return_to');
+
+        return str_starts_with($url, url('/teacher/')) ? $url : null;
     }
 
     protected function hasOptionRules(): bool

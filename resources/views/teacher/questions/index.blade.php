@@ -2,7 +2,10 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">{{ __('Question bank') }}</h2>
-            <x-primary-link href="{{ route('teacher.questions.create') }}">New question</x-primary-link>
+            <div class="flex items-center gap-3">
+                <a href="{{ route('teacher.questions.import.create') }}" class="text-sm font-medium text-indigo-600 hover:underline">Import CSV</a>
+                <x-primary-link href="{{ route('teacher.questions.create') }}">New question</x-primary-link>
+            </div>
         </div>
     </x-slot>
 

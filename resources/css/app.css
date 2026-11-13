@@ -6,3 +6,74 @@
 [x-cloak] {
     display: none !important;
 }
+
+@layer base {
+    h1, h2, h3, .font-display {
+        font-family: theme('fontFamily.display');
+    }
+}
+
+/* ======================================================================
+   Animated logo (resources/views/components/logo.blade.php)
+   An anvil; a hammer swings down, sparks fly, and a ✓ is "forged".
+   The element styles below ARE the final frame, so with no animation
+   (reduced motion, favicon, animated=false) the logo is complete and still.
+   ====================================================================== */
+.tf-logo svg { overflow: visible; }
+
+.tf-logo .tf-hammer {
+    opacity: 0;                       /* gone in the final frame */
+    transform-box: view-box;
+    transform-origin: 30px 4px;       /* the "hand" at the end of the handle */
+}
+.tf-logo .tf-spark {
+    opacity: 0;
+    transform-box: view-box;
+    transform-origin: 15px 24px;      /* the point of impact */
+}
+.tf-logo .tf-check {
+    stroke-dasharray: 32;
+    stroke-dashoffset: 0;             /* fully drawn in the final frame */
+}
+
+/* play once on load … */
+.tf-logo--animate .tf-hammer { animation: tf-strike 1.1s cubic-bezier(.5, 0, .3, 1) both; }
+.tf-logo--animate .tf-spark  { animation: tf-spark .7s ease-out .42s both; }
+.tf-logo--animate .tf-check  { animation: tf-draw .5s ease-out .8s both; }
+
+/* … and again on hover (a different keyframe name restarts the animation) */
+.tf-logo--animate:hover .tf-hammer { animation-name: tf-strike-again; }
+.tf-logo--animate:hover .tf-spark  { animation-name: tf-spark-again; }
+.tf-logo--animate:hover .tf-check  { animation-name: tf-draw-again; }
+
+/* loading states: keep forging */
+.tf-logo--loop .tf-hammer { animation: tf-strike 1.6s cubic-bezier(.5, 0, .3, 1) infinite; }
+.tf-logo--loop .tf-spark  { animation: tf-spark 1.6s ease-out .42s infinite; }
+.tf-logo--loop .tf-check  { animation: tf-draw 1.6s ease-out .8s infinite; }
+
+@keyframes tf-strike {
+    0%   { opacity: 1; transform: rotate(58deg); }
+    40%  { opacity: 1; transform: rotate(-3deg); }
+    50%  { opacity: 1; transform: rotate(0deg); }
+    75%  { opacity: 1; transform: rotate(0deg); }
+    100% { opacity: 0; transform: rotate(0deg); }
+}
+@keyframes tf-strike-again { 0% { opacity: 1; transform: rotate(58deg); } 40% { opacity: 1; transform: rotate(-3deg); } 50% { opacity: 1; transform: rotate(0deg); } 75% { opacity: 1; transform: rotate(0deg); } 100% { opacity: 0; transform: rotate(0deg); } }
+
+@keyframes tf-spark {
+    0%   { opacity: 0; transform: translate(0, 0) scale(.3); }
+    15%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+@keyframes tf-spark-again { 0% { opacity: 0; transform: translate(0, 0) scale(.3); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); } }
+
+@keyframes tf-draw {
+    from { stroke-dashoffset: 32; }
+    to   { stroke-dashoffset: 0; }
+}
+@keyframes tf-draw-again { from { stroke-dashoffset: 32; } to { stroke-dashoffset: 0; } }
+
+/* Users who ask their OS for less motion get the finished logo, never an animation. */
+@media (prefers-reduced-motion: reduce) {
+    .tf-logo .tf-hammer, .tf-logo .tf-spark, .tf-logo .tf-check { animation: none !important; }
+}

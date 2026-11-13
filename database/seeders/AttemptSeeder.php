@@ -70,7 +70,9 @@ class AttemptSeeder extends Seeder
      */
     private function pickStudents(Collection $students, User $demoStudent, int $count): Collection
     {
-        return $students->except($demoStudent->getKey())
+        $fresh = $students->firstWhere('email', 'student2@testforge.test'); // stays untouched for the checkout demo
+
+        return $students->except(array_filter([$demoStudent->getKey(), $fresh?->getKey()]))
             ->random($count - 1)
             ->prepend($demoStudent)
             ->values();

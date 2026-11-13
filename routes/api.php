@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\RazorpayWebhookController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\TestController;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,6 +14,12 @@ use Illuminate\Support\Facades\Route;
 | Errors are always JSON (see bootstrap/app.php): 401 no/invalid token, 403 wrong role
 | or deactivated, 404 not found, 422 validation / business rule.
 */
+
+// Razorpay → us (machine to machine): no session/CSRF, its own signature check, and no per-IP
+// API rate limit (Razorpay sends bursts and retries from a few IPs).
+Route::post('webhooks/razorpay', RazorpayWebhookController::class)
+    ->name('webhooks.razorpay')
+    ->withoutMiddleware(ThrottleRequests::class.':api');
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
     // Public — with a tighter rate limit against password guessing.

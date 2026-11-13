@@ -1,9 +1,13 @@
 <?php
 
 use App\Models\Attempt;
+use App\Models\Payment;
+use App\Models\Plan;
 use App\Models\Question;
 use App\Models\Test;
+use App\Models\TestSeries;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -54,7 +58,25 @@ it('renders every list page within its query budget', function (string $email, s
     ['student1@testforge.test', '/student/analytics', 5],
     ['student1@testforge.test', '/student/tests/mathematics-mock-test-1/leaderboard', 6],
     ['student1@testforge.test', '/student/attempts/{attempt}/result', 11],
+    // added with payments, import and the public site
+    ['admin@testforge.test', '/admin/series', 4],
+    ['admin@testforge.test', '/admin/plans', 4],
+    ['admin@testforge.test', '/admin/payments', 7],
+    ['admin@testforge.test', '/admin/messages', 4],
+    ['student1@testforge.test', '/student/series', 5],
+    ['student1@testforge.test', '/student/series/ssc', 8],
+    ['student1@testforge.test', '/student/purchases', 7],
+    ['teacher1@testforge.test', '/teacher/questions/import', 4],
 ]);
+
+it('renders the public homepage in a handful of queries', function () {
+    Cache::forget('home:stats');
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $this->get('/')->assertOk();
+
+    expect(count(DB::getQueryLog()))->toBeLessThanOrEqual(6);
+});
 
 it('keeps the same query count when lists get longer', function () {
     $student = User::where('email', 'student1@testforge.test')->first();
@@ -68,4 +90,28 @@ it('keeps the same query count when lists get longer', function () {
     $after = [queriesFor($this, $student, '/student/tests'), queriesFor($this, $teacher, '/teacher/questions')];
 
     expect($after)->toBe($before);
+});
+
+it('keeps the payments report flat as payments of both kinds grow', function () {
+    $admin = User::where('email', 'admin@testforge.test')->first();
+    $plan = Plan::first();
+    $series = TestSeries::first();
+
+    // A polymorphic eager load runs ONE query per type on the page (series, plan) — never one per row.
+    $pay = function (int $count) use ($plan, $series): void {
+        foreach (range(1, $count) as $i) {
+            $item = $i % 2 ? $plan : $series;
+            (new Payment)->forceFill([
+                'user_id' => User::factory()->student()->create()->id, 'payable_type' => $item->getMorphClass(), 'payable_id' => $item->id,
+                'amount_paise' => $item->price_paise, 'gateway' => 'test', 'status' => 'paid', 'paid_at' => now(),
+            ])->save();
+        }
+    };
+
+    $pay(2); // both types on the page
+    $before = queriesFor($this, $admin, '/admin/payments');
+
+    $pay(30); // many more rows of both types
+
+    expect(queriesFor($this, $admin, '/admin/payments'))->toBe($before);
 });

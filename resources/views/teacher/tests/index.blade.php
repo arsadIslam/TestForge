@@ -27,6 +27,7 @@
                             <tr>
                                 <td class="px-4 py-3">
                                     <a href="{{ route('teacher.tests.show', $test) }}" class="font-medium text-gray-900 hover:text-indigo-600">{{ $test->title }}</a>
+                                    <div class="mt-0.5 text-xs {{ $test->series ? 'text-amber-700' : 'text-gray-400' }}">{{ $test->series?->name ?? 'Free' }}</div>
                                 </td>
                                 <td class="px-4 py-3"><x-test-status-badge :status="$test->status" /></td>
                                 <td class="px-4 py-3 text-right">{{ $test->questions_count }}</td>

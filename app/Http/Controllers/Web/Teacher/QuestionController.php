@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web\Teacher;
 
 use App\Enums\Difficulty;
-use App\Enums\QuestionType;
 use App\Http\Controllers\Concerns\ReadsQuestionFilters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teacher\StoreQuestionRequest;
@@ -60,7 +59,6 @@ class QuestionController extends Controller implements HasMiddleware
     public function create(): View
     {
         $question = new Question([
-            'type' => QuestionType::Single,
             'difficulty' => Difficulty::Medium,
             'marks' => 1,
             'negative_marks' => 0,
@@ -99,7 +97,7 @@ class QuestionController extends Controller implements HasMiddleware
     {
         $questions->update($question, $request->validated());
 
-        return redirect()->route('teacher.questions.show', $question)
+        return redirect($request->returnTo() ?? route('teacher.questions.show', $question))
             ->with('success', 'Question updated.');
     }
 
@@ -138,7 +136,6 @@ class QuestionController extends Controller implements HasMiddleware
             'tagString' => $question->exists ? $question->tags->pluck('name')->implode(', ') : '',
             'subjects' => Subject::withSortedTopics()->get(),
             'existingTags' => Tag::orderBy('name')->pluck('name'),
-            'types' => QuestionType::cases(),
             'difficulties' => Difficulty::cases(),
             'minOptions' => StoreQuestionRequest::MIN_OPTIONS,
             'maxOptions' => StoreQuestionRequest::MAX_OPTIONS,

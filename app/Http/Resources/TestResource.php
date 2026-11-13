@@ -32,6 +32,17 @@ class TestResource extends JsonResource
                 isset($this->my_attempts_count),
                 fn (): int => max(0, $this->max_attempts - $this->my_attempts_count),
             ),
+            'series' => $this->whenLoaded('series', fn () => $this->series ? [
+                'id' => $this->series->id,
+                'name' => $this->series->name,
+                'slug' => $this->series->slug,
+                'price_paise' => $this->series->price_paise,
+            ] : null),
+            // true = paid series the student hasn't bought (and no All-Access pass)
+            'is_locked' => $this->when(
+                $request->attributes->has('access'),
+                fn (): bool => ! $request->attributes->get('access')->canAccessSeries($this->test_series_id),
+            ),
             'starts_at' => $this->starts_at?->toIso8601String(),
             'ends_at' => $this->ends_at?->toIso8601String(),
         ];

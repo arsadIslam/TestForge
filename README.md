@@ -1,7 +1,9 @@
 # TestForge — online exam & test-series platform
 
-Teachers build question banks and timed tests. Students take them with a server-enforced timer and
-auto-save, get scored by a queued job, and see their rank, percentile and weakest subjects.
+Teachers build question banks — with diagrams, image options and LaTeX maths — import them in bulk from
+CSV, and generate tests from random picks. Students take timed tests with a server-enforced clock and
+auto-save, get scored by a queued job, and see their rank, percentile and weakest subjects. Paid test series
+(e.g. SSC, WBSC) and All-Access passes are sold through **Razorpay**.
 
 Built with **Laravel 12** as a portfolio project. Every feature exists to show a common interview
 topic: relationships, auth & policies, queues, events, caching, transactions with row locks,
@@ -13,8 +15,10 @@ indexing, window functions, and tests.
 | Database | MySQL 8.0+ or MariaDB 10.4+ (CTEs and window functions are required) |
 | Web UI | Blade + Alpine.js + Tailwind (Laravel Breeze) |
 | API | Laravel Sanctum personal access tokens, API Resources |
+| Payments | Razorpay Standard Checkout (test mode), HMAC-verified callback + webhook |
+| Maths | KaTeX (LaTeX + mhchem chemistry), loaded only on pages that need it |
 | Queue, cache, sessions | `database` driver (works on shared hosting); Redis is a `.env` change |
-| Tests | Pest — 125 tests on MySQL |
+| Tests | Pest — 223 tests on MySQL |
 
 ---
 
@@ -28,6 +32,8 @@ indexing, window functions, and tests.
 - [Raw SQL vs Eloquent — the key queries](#raw-sql-vs-eloquent)
 - [Concurrency: where the locks are](#concurrency)
 - [REST API](#rest-api)
+- [Bulk import (CSV + ZIP)](#bulk-import)
+- [Payments (Razorpay)](#payments)
 - [Tests](#tests)
 - [Performance](#performance)
 - [Deploying to cPanel shared hosting](#deploying-to-cpanel)
@@ -41,26 +47,38 @@ indexing, window functions, and tests.
 - Users: search and filter, change role, activate / deactivate (deactivation also revokes API tokens). An admin can't change their own role or status.
 - Subjects and topics: full CRUD. Slugs are generated from names; a subject or topic that still has questions can't be deleted.
 - Reports: every teacher's tests with averages, published tests nobody has attempted, and the full analytics of any test.
+- **Paid test series** (price, validity or lifetime) and **All-Access passes**; a payments report with revenue; contact-form inbox.
 
 **Teacher**
-- Question bank: single / multiple choice, 2–6 options edited with Alpine, difficulty, marks, negative marks, explanation, tags. Filter by topic, difficulty and tag.
+- Question bank: 2–6 options edited with Alpine, difficulty, marks, negative marks, explanation, tags. Filter by topic, difficulty and tag.
+  - **Single vs multiple choice is derived from the answers**: one correct option → students pick one; two or more → students must select all correct answers (they aren't told how many).
+  - **Diagrams**: an image on the question and/or on any option (an option can be image-only). JPG/PNG/WebP ≤ 2 MB, stored under random names.
+  - **LaTeX maths**: `\( x^2 \)`, `$$ \frac{a}{b} $$`, chemistry `\( \ce{H2O} \)` — with a live preview while typing.
+  - **Bulk import** from CSV (+ a ZIP of images), with a preview that lists every error before anything is saved.
   - The bank is shared (any teacher can view and use a question); only the author can edit or delete it.
   - Once a question is in a published test its **answer key is frozen** (type, options, correct answers).
-- Test builder: details, time window, attempts allowed, shuffle. Add questions from the bank, reorder them, remove them.
+- Test builder: details, time window, attempts allowed, shuffle, **series (or Free)**. Add questions from the bank, reorder them, remove them.
+  - **Auto-select**: rules like "Algebra · hard · 4" + "Geometry · any · 6" pick random questions; then **swap** any one for another of the same topic and difficulty, remove, reorder, or edit it and come straight back. A composition summary shows the mix.
   - Publishing checks: at least one question, none inactive, pass mark ≤ total, end date not passed. A published test can only be archived.
 - Analytics per test: average score, pass rate, top 10, **toughest 10 questions**, every result.
 - Dashboard: own counts, latest results, published tests with no attempts yet.
 
 **Student**
-- Available tests with attempts used / left; start or resume.
+- Available tests with attempts used / left; start or resume. Paid tests show 🔒 **Unlock** until the series (or a pass) is bought.
+- **Test series & passes** catalogue, Razorpay checkout, *My purchases*.
 - Test screen: one question at a time, navigator, countdown, **auto-save on every answer**, submit with a summary of unanswered questions. When time runs out it submits itself.
 - Result page: score, pass/fail, correct / wrong / skipped, accuracy, time, rank and percentile, every question with the correct answer and explanation.
 - Leaderboard per test (best attempt per student), and *My analytics*: accuracy by subject, weakest first.
+
+**Everyone**
+- Public site: homepage with live numbers, Features, Contact, Terms, Privacy, Refunds; branded error pages.
+- An animated **anvil-and-spark logo** (pure SVG + CSS, still for users who prefer reduced motion), sidebar layout for admins/teachers, distraction-free test screen.
 
 **Behind the scenes**
 - `EvaluateAttempt` queued job scores each submission (idempotent, retried 3×).
 - `attempts:auto-submit` runs every minute and closes attempts whose time ran out.
 - `ResultPublished` event → `ClearLeaderboardCache` listener.
+- `imports:prune` (daily) deletes abandoned CSV uploads.
 
 ---
 
@@ -78,7 +96,8 @@ mysql -uroot -e "CREATE DATABASE testforge CHARACTER SET utf8mb4 COLLATE utf8mb4
                  CREATE DATABASE testforge_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 # set DB_USERNAME / DB_PASSWORD in .env if yours aren't root / empty
 
-php artisan migrate --seed        # schema + demo data (~2 s)
+php artisan migrate --seed        # schema + demo data (~3 s)
+php artisan storage:link          # serves uploaded question images from public/storage
 npm install && npm run build
 
 composer run dev                  # web server, queue worker, logs and Vite, together
@@ -87,8 +106,17 @@ php artisan schedule:work         # in a second terminal: runs attempts:auto-sub
 
 Open http://localhost:8000.
 
-The seed creates 1 admin, 3 teachers, 50 students, 5 subjects × 4 topics, 200 questions, 3 published tests
-and 90 scored attempts, so the leaderboards and analytics have data straight away. Results are produced by
+**Payments (optional):** create a free [Razorpay](https://razorpay.com) account → *Test Mode* → API keys, and put
+them in `.env` (`RAZORPAY_KEY_ID=rzp_test_…`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`). Without keys,
+everything works except the checkout, which says payments aren't set up yet. See [Payments](#payments).
+
+**Bigger uploads:** PHP's default `upload_max_filesize` is often 2 MB. For image ZIPs in the bulk import, raise
+`upload_max_filesize` and `post_max_size` (e.g. 25M) in `php.ini`.
+
+The seed creates 1 admin, 3 teachers, 50 students, 5 subjects × 4 topics, 200 questions (+ hand-written
+LaTeX and chemistry questions, and two diagram questions drawn with GD), 3 published tests, 90 scored attempts,
+two paid series (**SSC** ₹299 lifetime ← Maths test, **WBSC** ₹499 / 365 days ← Science test; the CS Quiz stays
+free) and two All-Access passes, so leaderboards, analytics and the shop have data straight away. Results are produced by
 the real `ScoringService`, not random numbers, so every report agrees with every other.
 
 ---
@@ -101,7 +129,8 @@ Password for every account: **`password`**
 |---|---|
 | Admin | `admin@testforge.test` |
 | Teacher | `teacher1@testforge.test` (also `teacher2`, `teacher3`) |
-| Student | `student1@testforge.test` — has results in two tests; the *Computer Science Quiz* is still open to take |
+| Student | `student1@testforge.test` — owns SSC and WBSC, has results in both; the free *Computer Science Quiz* is still open |
+| Student | `student2@testforge.test` — brand new: nothing bought, no attempts. Use it to try the checkout. |
 
 ---
 
@@ -117,18 +146,24 @@ app/
     ScoringService      scores an attempt (idempotent) and fires ResultPublished
     LeaderboardService  window-function ranking, cached 5 min
     AnalyticsService    subject accuracy, toughest questions, untouched tests, summaries
+    QuestionImportService  CSV + ZIP bulk import: preview, then all-or-nothing import
+    AccessService       who may start which test (series / All Access), granting access once
+    PaymentService      Razorpay orders, idempotent markPaid()
+    Payments/RazorpayGateway  the only class that talks to Razorpay (HTTP client, no SDK)
+  Support/            QuestionRules (shared by form + importer), QuestionImages, Money, Access, ImportPreview
   Http/
     Controllers/Web/{Admin,Teacher,Student}   Blade app
     Controllers/Api/V1                        REST API
     Requests/                                 all validation lives in Form Requests
     Resources/                                API Resources (JSON shape)
     Middleware/EnsureRole.php                 route-level role check ('role:teacher')
-  Policies/           record-level checks (QuestionPolicy, TestPolicy, AttemptPolicy, UserPolicy)
+  Policies/           record-level checks (QuestionPolicy, TestPolicy, AttemptPolicy, UserPolicy, PaymentPolicy)
   Jobs/EvaluateAttempt.php
   Events/ResultPublished.php  →  Listeners/ClearLeaderboardCache.php
   Console/Commands/AutoSubmitExpiredAttempts.php      (scheduled in routes/console.php)
   Exceptions/BusinessRuleException.php                (renders itself: flash on web, 422 on API)
-resources/js/         Alpine components: question-form, question-order, test-taker
+resources/js/         Alpine components: question-form, image-picker, question-order, test-generator,
+                      test-taker, razorpay-checkout; math.js (KaTeX, lazy-loaded)
 docs/                 performance.md, TestForge.postman_collection.json
 ```
 
@@ -172,8 +207,9 @@ sequenceDiagram
 
 ## Database
 
-13 application tables (InnoDB, `utf8mb4_unicode_ci`), plus Laravel's `sessions`, `cache`, `jobs`,
-`failed_jobs` and Sanctum's `personal_access_tokens`.
+18 application tables (InnoDB, `utf8mb4_unicode_ci`), plus Laravel's `sessions`, `cache`, `jobs`,
+`failed_jobs` and Sanctum's `personal_access_tokens`. `questions` and `question_options` also have an
+`image_path`; `contact_messages` (not drawn) stores the public contact form.
 
 ```mermaid
 erDiagram
@@ -194,6 +230,11 @@ erDiagram
     question_options ||--o{ attempt_answer_options : "selected as"
     attempts ||--|| results : "scored as"
     tests ||--o{ results : "denormalised"
+    test_series ||--o{ tests : "groups (null = free)"
+    users ||--o{ payments : makes
+    payments ||--o| entitlements : grants
+    users ||--o{ entitlements : holds
+    test_series ||--o{ entitlements : "unlocks (null = All Access)"
 
     users {
         bigint id PK
@@ -284,6 +325,36 @@ erDiagram
         int time_taken_seconds
         bool is_passed
     }
+    test_series {
+        bigint id PK
+        string slug UK
+        int price_paise
+        smallint validity_days "null = lifetime"
+        bool is_active
+    }
+    plans {
+        bigint id PK
+        int price_paise
+        smallint duration_days
+    }
+    payments {
+        bigint id PK
+        bigint user_id FK
+        string payable_type "test_series | plan"
+        bigint payable_id
+        int amount_paise "copied at order time"
+        string gateway_order_id UK
+        string gateway_payment_id UK
+        enum status
+    }
+    entitlements {
+        bigint id PK
+        bigint user_id FK
+        bigint payment_id FK "unique: grant once"
+        bigint test_series_id FK "null = All Access"
+        datetime starts_at
+        datetime ends_at "null = lifetime"
+    }
 ```
 
 Design choices worth defending:
@@ -294,6 +365,8 @@ Design choices worth defending:
 - **Duplicates are stopped by the database, not just code:** `unique(test_id, user_id, attempt_no)`, `unique(attempt_id, question_id)` (the auto-save upsert key), `unique(results.attempt_id)`.
 - **Enum values are hard-coded in migrations**, not read from the PHP enums, so a migration never changes after it has run.
 - `(status, expires_at)` index for the auto-submit command; covering indexes added after EXPLAIN — see [Performance](#performance).
+- **Money is integer paise**, never a float, and the **price is copied onto the payment** when the order is created — like the pivot marks, a later price change never touches an existing order.
+- **`unique(entitlements.payment_id)`**: a payment can grant access exactly once, even when the browser callback and the webhook both arrive.
 
 ---
 
@@ -469,6 +542,9 @@ row lock with `lockForUpdate()` (`SELECT … FOR UPDATE`), and **re-checks the r
 | Score (job) | the attempt | already `evaluated` → returns the existing result; `unique(results.attempt_id)` as a last guard |
 | Attach / reorder / publish / archive | the test | "attach in one tab" and "publish in another" can't interleave |
 | Auto-submit command | each attempt | a student who submits a second before the command reaches them is left alone |
+| Generate / swap questions | the test | random picks always see the test's current questions |
+| Mark a payment paid | the payment | browser callback + webhook + Razorpay retries → granted once |
+| Grant access | the student's `users` row | two purchases finishing together can't compute the same start date when stacking |
 
 The scoring job is queued with `afterCommit()` and `ResultPublished` implements `ShouldDispatchAfterCommit`,
 so nothing outside the transaction ever sees work that might still roll back.
@@ -505,10 +581,78 @@ A Postman collection is in [`docs/TestForge.postman_collection.json`](docs/TestF
 
 ---
 
+## Bulk import
+
+*Question bank → Import CSV* → upload a CSV (and optionally a ZIP of images) → a **preview** lists every row as OK
+or with its errors (row-numbered) → **Import** is only enabled when there are no errors. All-or-nothing, so a
+corrected re-upload never creates duplicates; the confirm step re-reads and re-validates the file instead of
+trusting the preview.
+
+```
+subject,topic,difficulty,marks,negative_marks,body,explanation,tags,image,
+option_1,option_1_image, … ,option_6,option_6_image,correct
+```
+
+- `subject`, `topic` by name (must exist); `correct` = `2` or `1|3` (one → single choice, several → multiple);
+  `tags` separated by `|`; `image` / `option_N_image` = file names inside the ZIP. A template is downloadable.
+- Every row is validated with **the same rules as the form** (`App\Support\QuestionRules`).
+- Images are checked inside the ZIP **without extracting** (size, real type from the bytes, ≤ 4000 px) and copied out
+  by content only — paths inside the ZIP are never used, so a crafted `../../evil.php` entry can't write anywhere.
+- Limits: 500 rows, CSV ≤ 2 MB, ZIP ≤ 20 MB (raise PHP's upload limits for big ZIPs). UTF-8 with or without BOM.
+
+---
+
+## Payments
+
+Paid **test series** (one series, for N days or lifetime) and **All-Access passes** (every test for N days), sold
+with [Razorpay Standard Checkout](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/).
+Tests with no series are free. Access is checked when an attempt **starts**; an attempt already in progress can
+always be finished.
+
+```mermaid
+sequenceDiagram
+    actor S as Student
+    participant C as CheckoutController
+    participant P as PaymentService
+    participant R as Razorpay
+    participant W as Webhook
+
+    S->>C: POST /student/checkout {type, id}  (no price!)
+    C->>P: createOrder() — payments row, amount FROM THE DB
+    P->>R: POST /v1/orders (after commit — no network call inside a transaction)
+    R-->>P: order_id
+    S->>R: pays in the Checkout.js popup (test cards / UPI in test mode)
+    R-->>S: payment_id + order_id + signature
+    S->>C: POST /student/checkout/verify
+    C->>C: HMAC-SHA256(order_id|payment_id, key_secret) == signature?
+    C->>P: markPaid() — lock payment row; already paid → no-op
+    P->>P: AccessService::grant() — entitlement (unique payment_id)
+    R->>W: payment.captured (also when the tab was closed)
+    W->>W: HMAC of the RAW body with the webhook secret
+    W->>P: markPaid() — same idempotent path; amount must match
+```
+
+**Set-up (test mode, no KYC):** Razorpay dashboard → *Test Mode* → *API Keys* → `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`;
+*Webhooks* → URL `https://your-domain/api/webhooks/razorpay`, events `payment.captured`, `order.paid`, `payment.failed`,
+and a secret → `RAZORPAY_WEBHOOK_SECRET`. Pay with the test cards / UPI IDs from Razorpay's test-mode docs.
+Locally Razorpay can't reach `localhost`, so the browser callback does the work — use a tunnel (ngrok, cloudflared)
+to try the webhook.
+
+Why it is safe:
+- The browser only says *what* to buy; the **amount comes from the database** and is fixed in the Razorpay order.
+- A payment counts only with a valid **HMAC signature** (`hash_equals`, constant-time); the secret never reaches the page.
+- `markPaid()` locks the payment row and returns early if it's already paid; `unique(entitlements.payment_id)` backs it up.
+- The webhook rejects bad signatures (400), ignores amounts that don't match, and never turns a paid order into a failed one.
+- `payments.payable_type` stores `test_series` / `plan` (`Relation::enforceMorphMap`), not PHP class names.
+
+Out of scope: refunds (done from the Razorpay dashboard), GST invoices, coupons, auto-renewing subscriptions.
+
+---
+
 ## Tests
 
 ```bash
-php artisan test        # 125 tests, ~25 s, against the testforge_testing MySQL database
+php artisan test        # 223 tests, ~40 s, against the testforge_testing MySQL database
 ```
 
 Tests run on MySQL (not SQLite) because the code relies on MySQL behaviour: window functions, enums,
@@ -523,7 +667,15 @@ Tests run on MySQL (not SQLite) because the code relies on MySQL behaviour: wind
 | `Feature/LeaderboardTest` | **order** (score, then time), best attempt per student, `RANK` ties, percentile, top 50 vs `rankOf`, cache invalidation |
 | `Feature/ApiTest` | tokens, 201/204/401/403/404/422, JSON errors without `Accept`, pagination shape |
 | `Feature/TestBuilderTest` | publish rules, frozen answer key, ownership, question-in-use |
-| `Feature/QueryCountTest` | N+1 guard: query budgets per page, and counts that don't grow with the data |
+| `Feature/QueryCountTest` | N+1 guard: query budgets per page, and counts that don't grow with the data (incl. a polymorphic list) |
+| `Feature/QuestionImageTest` | uploads, replace/remove, SVG/size/dimension rejection, random names, cleanup when a save fails, locked option images |
+| `Feature/QuestionTypeTest` | single/multiple derived from the correct answers; a posted `type` is ignored |
+| `Feature/MathTextTest` | LaTeX reaches every page unchanged and HTML-escaped |
+| `Feature/QuestionImportTest` | template, preview errors per row, BOM, ZIP images, all-or-nothing, re-validation on confirm, privacy, pruning |
+| `Feature/TestGeneratorTest` | rule picking, no duplicates, specific-rules-first, rollback on shortfall, swap, edit-and-return (no open redirect) |
+| `Feature/AccessTest` | free vs paid tests, series vs All Access, expiry, stacking, lifetime, API `is_locked`, admin pricing in paise |
+| `Feature/PaymentTest` | Razorpay (faked): DB price, signatures, idempotency (callback + webhook), amount mismatch, outage, passes |
+| `Feature/PublicPagesTest`, `ContactTest` | public pages + legal links, live homepage numbers, honeypot, rate limit, admin inbox, error pages |
 | `Feature/Auth/*` | Breeze's own auth tests |
 
 ---
@@ -545,7 +697,8 @@ Shared hosting has no Redis, no Supervisor and usually no Node, so the app is bu
    (it's git-ignored, so either upload it separately or build in a deploy step).
 2. **Upload / clone** the project *outside* `public_html`, then point the domain's document root at the project's
    `public/` folder (or symlink `public_html` → `public`).
-3. **PHP 8.2+** in *MultiPHP Manager*; extensions `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `fileinfo`.
+3. **PHP 8.2+** in *MultiPHP Manager*; extensions `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`,
+   `fileinfo`, `gd`, `zip`. In *MultiPHP INI Editor* raise `upload_max_filesize` / `post_max_size` (e.g. 25M) for image ZIPs.
 4. Create the MySQL database and user in cPanel, then `.env`:
 
    ```dotenv
@@ -563,6 +716,10 @@ Shared hosting has no Redis, no Supervisor and usually no Node, so the app is bu
    CACHE_STORE=database
    SESSION_DRIVER=database
    QUEUE_RUN_VIA_SCHEDULER=true     # see step 6
+
+   RAZORPAY_KEY_ID=rzp_live_...     # rzp_test_... until you go live
+   RAZORPAY_KEY_SECRET=...
+   RAZORPAY_WEBHOOK_SECRET=...      # webhook URL: https://exams.example.com/api/webhooks/razorpay
    ```
 
 5. Over SSH (or *Terminal* in cPanel):
@@ -572,8 +729,12 @@ Shared hosting has no Redis, no Supervisor and usually no Node, so the app is bu
    php artisan key:generate
    php artisan migrate --force
    php artisan db:seed --force      # only if you want the demo data
+   php artisan storage:link         # question images
    php artisan config:cache && php artisan route:cache && php artisan view:cache
    ```
+
+   If the host blocks `symlink()`, point the `public` disk at the web root instead: in `config/filesystems.php`
+   set its `root` to `public_path('storage')`.
 
    `storage/` and `bootstrap/cache/` must be writable by PHP.
 6. **One cron job** (*cPanel → Cron Jobs*, every minute):
@@ -587,6 +748,8 @@ Shared hosting has no Redis, no Supervisor and usually no Node, so the app is bu
    next minute (`withoutOverlapping()` stops runs piling up). Results therefore appear within about a minute
    of submitting — the result page shows "being marked" and refreshes itself until then.
 7. Failed jobs land in `failed_jobs`; re-run them with `php artisan queue:retry all`.
+8. Before taking real payments, review the **Terms, Privacy and Refund** pages (template text, marked as such) —
+   Razorpay checks that they exist and are linked from every page.
 
 On a VPS, use Supervisor to keep `php artisan queue:work` running instead, set `QUEUE_RUN_VIA_SCHEDULER=false`,
 and optionally switch `QUEUE_CONNECTION` / `CACHE_STORE` to `redis`.

@@ -9,11 +9,17 @@
     <div class="py-8">
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <x-stat-card label="Tests taken" :value="$summary['tests']" />
-                <x-stat-card label="Average score" :value="($summary['avg_percent'] ?? '0').'%'" />
-                <x-stat-card label="Best score" :value="($summary['best_percent'] ?? '0').'%'" />
-                <x-stat-card label="Pass rate" :value="($summary['pass_rate'] ?? '0').'%'" />
+                <x-stat-card icon="clipboard" label="Tests taken" :value="$summary['tests']" />
+                <x-stat-card icon="chart" label="Average score" :value="($summary['avg_percent'] ?? '0').'%'" />
+                <x-stat-card icon="sparkles" label="Best score" :value="($summary['best_percent'] ?? '0').'%'" />
+                <x-stat-card icon="check" label="Pass rate" :value="($summary['pass_rate'] ?? '0').'%'" />
             </div>
+
+            @if ($access->hasAllAccess())
+                <div class="rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                    ✨ You have <strong>All Access</strong> until {{ $access->allAccessUntil->format('d M Y') }} — every test is unlocked.
+                </div>
+            @endif
 
             @foreach ($inProgress as $attempt)
                 <div class="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm">

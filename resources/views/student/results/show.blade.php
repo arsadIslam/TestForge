@@ -17,9 +17,18 @@
             {{-- Score summary --}}
             <div class="bg-white p-6 shadow-sm sm:rounded-lg">
                 <div class="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <div class="text-sm text-gray-500">Score</div>
-                        <div class="text-4xl font-bold text-gray-900">{{ $result->score }} <span class="text-xl font-medium text-gray-400">/ {{ $attempt->test->total_marks }}</span></div>
+                    <div class="flex items-center gap-5">
+                        {{-- Score ring: a CSS conic-gradient, no chart library. --}}
+                        @php($percent = (float) $attempt->test->total_marks > 0 ? max(0, min(100, round((float) $result->score / (float) $attempt->test->total_marks * 100))) : 0)
+                        <div class="relative h-24 w-24 shrink-0 rounded-full"
+                             style="background: conic-gradient({{ $result->is_passed ? '#16a34a' : '#dc2626' }} {{ $percent * 3.6 }}deg, #e2e8f0 0deg)"
+                             role="img" aria-label="{{ $percent }}% of the total marks">
+                            <div class="absolute inset-2 flex items-center justify-center rounded-full bg-white font-display text-xl font-bold text-gray-900">{{ $percent }}%</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-500">Score</div>
+                            <div class="font-display text-4xl font-bold text-gray-900">{{ $result->score }} <span class="text-xl font-medium text-gray-400">/ {{ $attempt->test->total_marks }}</span></div>
+                        </div>
                     </div>
                     <span @class([
                         'rounded-full px-4 py-1 text-sm font-bold uppercase tracking-wide',
@@ -51,7 +60,7 @@
                     @php($question = $item['question'])
                     <div class="bg-white p-6 shadow-sm sm:rounded-lg">
                         <div class="flex items-start justify-between gap-4">
-                            <p class="font-medium text-gray-900 whitespace-pre-line"><span class="text-gray-400">{{ $loop->iteration }}.</span> {{ $question->body }}</p>
+                            <div class="flex gap-2 font-medium text-gray-900"><span class="text-gray-400">{{ $loop->iteration }}.</span><x-rich-text :text="$question->body" /></div>
                             <span @class([
                                 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold',
                                 'bg-green-100 text-green-800' => $item['status'] === 'correct',
@@ -73,7 +82,7 @@
                                 ])>
                                     <span class="w-5 font-semibold text-gray-500">{{ chr(64 + $loop->iteration) }}.</span>
                                     <span class="flex flex-1 flex-col gap-2">
-                                        @if ($option->option_text)<span class="whitespace-pre-line">{{ $option->option_text }}</span>@endif
+                                        <x-rich-text :text="$option->option_text" as="span" />
                                         <x-question-image :src="$option->image_url" size="md" :alt="'Option '.chr(64 + $loop->iteration)" />
                                     </span>
                                     @if ($picked)<span class="text-xs font-medium text-gray-600">Your answer</span>@endif
@@ -85,7 +94,7 @@
                         @if ($question->explanation)
                             <div class="mt-4 rounded-md bg-gray-50 p-4 text-sm">
                                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Explanation</div>
-                                <p class="mt-1 text-gray-700 whitespace-pre-line">{{ $question->explanation }}</p>
+                                <x-rich-text :text="$question->explanation" as="p" class="mt-1 text-gray-700" />
                             </div>
                         @endif
                     </div>

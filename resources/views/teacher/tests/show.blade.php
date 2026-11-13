@@ -26,8 +26,9 @@
                 <div><dt class="text-gray-500">Opens</dt><dd class="font-medium">{{ $test->starts_at?->format('d M Y H:i') ?? 'Any time' }}</dd></div>
                 <div><dt class="text-gray-500">Closes</dt><dd class="font-medium">{{ $test->ends_at?->format('d M Y H:i') ?? 'No end date' }}</dd></div>
                 <div><dt class="text-gray-500">Published</dt><dd class="font-medium">{{ $test->published_at?->format('d M Y H:i') ?? '—' }}</dd></div>
+                <div><dt class="text-gray-500">Series</dt><dd class="font-medium">{{ $test->series?->name ?? 'Free' }}</dd></div>
                 <div><dt class="text-gray-500">Question order</dt><dd class="font-medium">{{ $test->shuffle_questions ? 'Shuffled per student' : 'Fixed' }}</dd></div>
-                <div class="sm:col-span-2"><dt class="text-gray-500">Times shown in</dt><dd class="font-medium">{{ config('app.timezone') }}</dd></div>
+                <div><dt class="text-gray-500">Times shown in</dt><dd class="font-medium">{{ config('app.timezone') }}</dd></div>
             </dl>
 
             <div class="bg-white shadow-sm sm:rounded-lg">

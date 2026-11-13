@@ -22,6 +22,15 @@ export default ({ items }) => ({
         [this.items[index], this.items[target]] = [this.items[target], this.items[index]];
     },
 
+    /** Replace one question with another random one of the same topic and difficulty. */
+    swap(item) {
+        if (this.dirty && !confirm('Your unsaved order changes will be lost. Swap anyway?')) {
+            return;
+        }
+        this.$refs.swapForm.action = item.swapUrl;
+        this.$refs.swapForm.submit();
+    },
+
     remove(item) {
         const warning = this.dirty ? '\n\nYour unsaved order changes will be lost.' : '';
         if (!confirm(`Remove this question from the test?${warning}`)) {

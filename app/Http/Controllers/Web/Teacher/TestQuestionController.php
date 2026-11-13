@@ -6,6 +6,7 @@ use App\Enums\Difficulty;
 use App\Http\Controllers\Concerns\ReadsQuestionFilters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teacher\AttachQuestionsRequest;
+use App\Http\Requests\Teacher\GenerateTestQuestionsRequest;
 use App\Http\Requests\Teacher\ReorderTestQuestionsRequest;
 use App\Models\Question;
 use App\Models\Subject;
@@ -37,7 +38,8 @@ class TestQuestionController extends Controller implements HasMiddleware
 
     public function index(Request $request, Test $test): View
     {
-        $attached = $test->questions()->with('topic')->get();
+        $attached = $test->questions()->with('topic.subject')->get();
+        $backToBuilder = route('teacher.tests.questions.index', $test);
 
         // Plain arrays for the Alpine reorder list, prepared here so the view stays logic-free.
         $items = $attached->map(fn (Question $question): array => [
@@ -49,7 +51,18 @@ class TestQuestionController extends Controller implements HasMiddleware
             'marks' => $question->pivot->marks,
             'negative_marks' => $question->pivot->negative_marks,
             'removeUrl' => route('teacher.tests.questions.destroy', [$test, $question]),
+            'swapUrl' => route('teacher.tests.questions.swap', [$test, $question]),
+            // Only the author may edit; they come straight back here afterwards.
+            'editUrl' => $request->user()->can('update', $question)
+                ? route('teacher.questions.edit', [$question, 'return_to' => $backToBuilder])
+                : null,
         ])->values();
+
+        // What the (random) selection looks like: counts by difficulty and by topic.
+        $composition = [
+            'byDifficulty' => $attached->countBy(fn (Question $q): string => $q->difficulty->label())->sortKeys()->all(),
+            'byTopic' => $attached->countBy(fn (Question $q): string => $q->topic->subject->name.' › '.$q->topic->name)->sortDesc()->all(),
+        ];
 
         $filters = $this->questionFilters($request);
 
@@ -71,7 +84,28 @@ class TestQuestionController extends Controller implements HasMiddleware
             'subjects' => Subject::withSortedTopics()->get(),
             'tags' => Tag::orderBy('name')->pluck('name', 'id'),
             'difficulties' => Difficulty::cases(),
+            'composition' => $composition,
         ]);
+    }
+
+    /**
+     * "Auto-select questions": random picks by rules, added to (or replacing) the current list.
+     */
+    public function generate(GenerateTestQuestionsRequest $request, Test $test, TestService $tests): RedirectResponse
+    {
+        $added = $tests->generate($test, $request->validated('rules'), $request->validated('mode') === 'replace');
+
+        return back()->with('success', "Added {$added} random ".Str::plural('question', $added).'. Swap, remove or reorder them below.');
+    }
+
+    /**
+     * Replace one question with another random one of the same topic and difficulty.
+     */
+    public function swap(Test $test, Question $question, TestService $tests): RedirectResponse
+    {
+        $tests->swapQuestion($test, $question);
+
+        return back()->with('success', 'Swapped in a different question.');
     }
 
     public function store(AttachQuestionsRequest $request, Test $test, TestService $tests): RedirectResponse

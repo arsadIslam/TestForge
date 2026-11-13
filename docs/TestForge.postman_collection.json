@@ -257,7 +257,7 @@
                 "tests"
               ]
             },
-            "description": "Published tests inside their time window, with my attempts used / left. Paginated (links + meta). Student only."
+            "description": "Published tests inside their time window, with my attempts used / left, the test's `series` (null = free) and `is_locked` (true = a paid series I haven't bought and no All-Access pass). Paginated (links + meta). Student only."
           }
         },
         {

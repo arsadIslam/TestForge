@@ -18,10 +18,12 @@
     </div>
 </div>
 
-<div>
+<div x-data="{ text: @js(old('body', $question->body) ?? '') }">
     <x-input-label for="body" value="Question" />
-    <textarea id="body" name="body" rows="4" maxlength="5000" required
+    <textarea id="body" name="body" rows="4" maxlength="5000" required x-model="text"
               class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">{{ old('body', $question->body) }}</textarea>
+    <p class="mt-1 text-xs text-gray-500">Maths: <code>\( x^2 \)</code> inline, <code>$$ \frac{a}{b} $$</code> on its own line, chemistry <code>\( \ce{H2O} \)</code>. A single <code>$</code> stays a dollar sign.</p>
+    @include('teacher.questions._math-preview')
     <x-input-error class="mt-2" :messages="$errors->get('body')" />
 </div>
 
@@ -70,27 +72,15 @@
     </div>
 @else
     <div x-data="questionForm({
-            type: @js(old('type', $question->type?->value)),
             options: @js(old('options', $options)),
             savedImages: @js($optionImages),
             min: {{ $minOptions }},
             max: {{ $maxOptions }},
         })" class="space-y-4">
         <div>
-            <x-input-label for="type" value="Type" />
-            <x-select-input id="type" name="type" class="mt-1 block w-full sm:w-64" x-model="type" required>
-                @foreach ($types as $type)
-                    <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                @endforeach
-            </x-select-input>
-            <x-input-error class="mt-2" :messages="$errors->get('type')" />
-        </div>
-
-        <div>
             <div class="flex items-baseline justify-between">
                 <x-input-label value="Options" />
-                <span class="text-xs text-gray-500"
-                      x-text="type === 'single' ? 'Select the one correct option' : 'Tick every correct option'"></span>
+                <span class="text-xs text-gray-500">Tick every correct option</span>
             </div>
 
             <div class="mt-2 space-y-2">
@@ -102,13 +92,12 @@
                         <input type="hidden" :name="`options[${index}][is_correct]`" :value="option.is_correct ? 1 : 0">
                         <input type="hidden" :name="`options[${index}][remove_image]`" :value="option.remove_image ? 1 : 0">
 
-                        {{-- UI only (no name, so not submitted): radio for single, checkbox for multiple --}}
-                        <input :type="type === 'single' ? 'radio' : 'checkbox'"
+                        {{-- UI only (no name, so not submitted): the hidden is_correct input above is what counts --}}
+                        <input type="checkbox"
                                :checked="option.is_correct"
                                @change="toggleCorrect(index)"
                                :aria-label="`Option ${index + 1} is correct`"
-                               class="h-5 w-5 border-gray-300 text-green-600 focus:ring-green-500"
-                               :class="type === 'multiple' && 'rounded'">
+                               class="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500">
 
                         <span class="w-5 text-sm font-semibold text-gray-500" x-text="String.fromCharCode(65 + index) + '.'"></span>
 
@@ -120,6 +109,12 @@
                         <button type="button" @click="remove(index)" x-show="canRemove"
                                 class="text-sm text-red-600 hover:underline">Remove</button>
                     </div>
+
+                    {{-- Live maths preview of this option (only when it contains LaTeX) --}}
+                    <template x-if="hasMath(option.text)">
+                        <div class="mt-2 ps-14 text-sm text-gray-800" x-text="option.text"
+                             x-effect="option.text; $nextTick(() => renderMath($el))"></div>
+                    </template>
 
                     {{-- Option image --}}
                     <div class="mt-2 flex items-center gap-3 ps-14 text-xs">
@@ -144,6 +139,14 @@
                 <span class="text-xs text-gray-500" x-text="`${options.length} of ${max} options · ${correctCount} correct`"></span>
             </div>
 
+            {{-- Single/multiple is derived from the ticks, never chosen: students may only pick
+                 several options when several are correct. --}}
+            <p class="mt-3 rounded-md px-3 py-2 text-sm"
+               :class="correctCount > 1 ? 'bg-indigo-50 text-indigo-800' : (correctCount === 1 ? 'bg-gray-50 text-gray-700' : 'bg-amber-50 text-amber-800')"
+               x-text="correctCount > 1
+                   ? `Multiple choice: students must select all ${correctCount} correct answers (they are not told how many).`
+                   : (correctCount === 1 ? 'Single choice: students pick one answer.' : 'Tick at least one correct option.')"></p>
+
             {{-- errors for 'options' and every 'options.N.field' --}}
             <x-input-error class="mt-2" :messages="array_merge($errors->get('options'), ...array_values($errors->get('options.*')))" />
             <p class="mt-1 text-xs text-gray-500">An option can be text, an image, or both. Option images: JPG, PNG or WebP, up to 2 MB.</p>
@@ -151,10 +154,11 @@
     </div>
 @endif
 
-<div>
+<div x-data="{ text: @js(old('explanation', $question->explanation) ?? '') }">
     <x-input-label for="explanation" value="Explanation (shown to students after the result)" />
-    <textarea id="explanation" name="explanation" rows="3" maxlength="5000"
+    <textarea id="explanation" name="explanation" rows="3" maxlength="5000" x-model="text"
               class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">{{ old('explanation', $question->explanation) }}</textarea>
+    @include('teacher.questions._math-preview')
     <x-input-error class="mt-2" :messages="$errors->get('explanation')" />
 </div>
 

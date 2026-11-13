@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\TestStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Question;
+use App\Models\Subject;
 use App\Models\Test;
+use App\Models\Topic;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -51,32 +53,166 @@ class TestService
         return DB::transaction(function () use ($test, $questionIds): int {
             $test = $this->lockWithStatus($test, TestStatus::Draft, 'Questions can only be added to a draft test.');
 
-            $pivot = DB::table('test_question')->where('test_id', $test->id);
-            $alreadyAttached = (clone $pivot)->pluck('question_id')->all();
-            $nextSortOrder = (int) (clone $pivot)->max('sort_order');
-
-            $questions = Question::active()
-                ->whereIn('id', $questionIds)
-                ->whereNotIn('id', $alreadyAttached)
-                ->get(['id', 'marks', 'negative_marks'])
-                ->keyBy('id');
-
-            $rows = [];
-            foreach ($questionIds as $id) { // keep the order the teacher picked them in
-                if ($question = $questions->pull($id)) {
-                    $rows[$question->id] = [
-                        'sort_order' => ++$nextSortOrder,
-                        'marks' => $question->marks,
-                        'negative_marks' => $question->negative_marks,
-                    ];
-                }
-            }
-
-            $test->questions()->attach($rows);
+            $added = $this->appendQuestions($test, $questionIds);
             $this->refreshTotalMarks($test);
 
-            return count($rows);
+            return $added;
         });
+    }
+
+    /**
+     * Randomly pick questions by rules, e.g. "Algebra · hard · 4" + "Geometry · any · 6".
+     * The teacher then edits the result in the builder (swap, remove, reorder, add).
+     *
+     * Each rule draws ACTIVE questions that are not already in the test and not drawn by an
+     * earlier rule. All-or-nothing: if any rule can't be filled, the transaction rolls back
+     * (including a "replace" that already removed the old questions) and the error says
+     * exactly what is available.
+     *
+     * @param  list<array{subject_id: int, topic_id?: ?int, difficulty?: ?string, count: int}>  $rules
+     * @return int number of questions added
+     */
+    public function generate(Test $test, array $rules, bool $replace = false): int
+    {
+        return DB::transaction(function () use ($test, $rules, $replace): int {
+            $test = $this->lockWithStatus($test, TestStatus::Draft, 'Questions can only be generated for a draft test.');
+
+            if ($replace) {
+                DB::table('test_question')->where('test_id', $test->id)->delete();
+            }
+
+            $exclude = DB::table('test_question')->where('test_id', $test->id)->pluck('question_id')->all();
+            $picked = [];
+            $pickedByRule = [];
+            $shortfalls = [];
+
+            // Most specific rules draw first (topic + difficulty, topic, difficulty, whole subject),
+            // so a broad rule like "any Maths topic" can't use up the questions that a narrow rule
+            // like "Algebra · hard" needs. The picks are still added in the teacher's rule order.
+            $bySpecificity = collect($rules)->sortByDesc(
+                fn (array $rule): int => (($rule['topic_id'] ?? null) ? 2 : 0) + (($rule['difficulty'] ?? null) ? 1 : 0)
+            );
+
+            foreach ($bySpecificity as $index => $rule) {
+                $count = (int) $rule['count'];
+
+                $ids = Question::active()
+                    ->whereIn('topic_id', Topic::where('subject_id', $rule['subject_id'])->select('id'))
+                    ->when($rule['topic_id'] ?? null, fn ($q, $topicId) => $q->where('topic_id', $topicId))
+                    ->when($rule['difficulty'] ?? null, fn ($q, $difficulty) => $q->where('difficulty', $difficulty))
+                    ->whereNotIn('id', [...$exclude, ...$picked])
+                    ->inRandomOrder()
+                    ->limit($count)
+                    ->pluck('id')
+                    ->all();
+
+                if (count($ids) < $count) {
+                    $shortfalls[] = $this->ruleLabel($rule).': asked '.$count.', only '.count($ids).' available';
+                }
+
+                array_push($picked, ...$ids);
+                $pickedByRule[$index] = $ids;
+            }
+
+            if ($shortfalls !== []) {
+                throw new BusinessRuleException('Not enough matching questions — '.implode('; ', $shortfalls).'. Nothing was changed.');
+            }
+
+            ksort($pickedByRule); // back to the teacher's rule order
+            $added = $this->appendQuestions($test, array_merge(...array_values($pickedByRule)));
+            $this->refreshTotalMarks($test);
+
+            return $added;
+        });
+    }
+
+    /**
+     * Replace one question with a random active question of the SAME topic and difficulty
+     * that isn't in the test yet, keeping its position. Marks are re-copied from the new question.
+     */
+    public function swapQuestion(Test $test, Question $question): Question
+    {
+        return DB::transaction(function () use ($test, $question): Question {
+            $test = $this->lockWithStatus($test, TestStatus::Draft, 'Questions can only be swapped in a draft test.');
+
+            $inTest = DB::table('test_question')->where('test_id', $test->id)->pluck('question_id')->all();
+
+            $replacement = Question::active()
+                ->where('topic_id', $question->topic_id)
+                ->where('difficulty', $question->difficulty)
+                ->whereNotIn('id', $inTest)
+                ->inRandomOrder()
+                ->first()
+                ?? throw new BusinessRuleException(
+                    "There is no other active {$question->difficulty->value} question in this topic to swap in."
+                );
+
+            // Same row, same sort_order: only the question (and its copied marks) change.
+            DB::table('test_question')
+                ->where('test_id', $test->id)
+                ->where('question_id', $question->id)
+                ->update([
+                    'question_id' => $replacement->id,
+                    'marks' => $replacement->marks,
+                    'negative_marks' => $replacement->negative_marks,
+                ]);
+
+            $this->refreshTotalMarks($test);
+
+            return $replacement;
+        });
+    }
+
+    /**
+     * Append questions after the ones already in the test, in the given order. Marks and
+     * negative marks are COPIED into the pivot, so editing a question later never changes
+     * this test or its results. Already-attached / inactive ids are skipped.
+     * The caller holds the test's row lock.
+     *
+     * @param  list<int|string>  $questionIds
+     */
+    private function appendQuestions(Test $test, array $questionIds): int
+    {
+        $pivot = DB::table('test_question')->where('test_id', $test->id);
+        $alreadyAttached = (clone $pivot)->pluck('question_id')->all();
+        $nextSortOrder = (int) (clone $pivot)->max('sort_order');
+
+        $questions = Question::active()
+            ->whereIn('id', $questionIds)
+            ->whereNotIn('id', $alreadyAttached)
+            ->get(['id', 'marks', 'negative_marks'])
+            ->keyBy('id');
+
+        $rows = [];
+        foreach ($questionIds as $id) { // keep the given order
+            if ($question = $questions->pull($id)) {
+                $rows[$question->id] = [
+                    'sort_order' => ++$nextSortOrder,
+                    'marks' => $question->marks,
+                    'negative_marks' => $question->negative_marks,
+                ];
+            }
+        }
+
+        $test->questions()->attach($rows);
+
+        return count($rows);
+    }
+
+    /**
+     * "Mathematics › Algebra · hard" for error messages.
+     *
+     * @param  array{subject_id: int, topic_id?: ?int, difficulty?: ?string}  $rule
+     */
+    private function ruleLabel(array $rule): string
+    {
+        $label = Subject::whereKey($rule['subject_id'])->value('name');
+
+        if ($rule['topic_id'] ?? null) {
+            $label .= ' › '.Topic::whereKey($rule['topic_id'])->value('name');
+        }
+
+        return $label.(($rule['difficulty'] ?? null) ? ' · '.$rule['difficulty'] : '');
     }
 
     public function detachQuestion(Test $test, Question $question): void

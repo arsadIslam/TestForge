@@ -12,11 +12,11 @@
     <div class="py-8">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
-                <x-stat-card label="My questions" :value="$questionCount" />
+                <x-stat-card icon="question" label="My questions" :value="$questionCount" />
                 @foreach (\App\Enums\TestStatus::cases() as $status)
-                    <x-stat-card :label="$status->label().' tests'" :value="$testsByStatus[$status->value] ?? 0" />
+                    <x-stat-card icon="clipboard" :label="$status->label().' tests'" :value="$testsByStatus[$status->value] ?? 0" />
                 @endforeach
-                <x-stat-card label="Results on my tests" :value="$resultCount" />
+                <x-stat-card icon="chart" label="Results on my tests" :value="$resultCount" />
             </div>
 
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">

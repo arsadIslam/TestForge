@@ -9,6 +9,11 @@
                 <div class="flex flex-col gap-4 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:rounded-lg">
                     <div>
                         <a href="{{ route('student.tests.show', $test->slug) }}" class="text-lg font-semibold text-gray-900 hover:text-indigo-600">{{ $test->title }}</a>
+                        @if ($test->series)
+                            <a href="{{ route('student.series.show', $test->series) }}" class="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200">{{ $test->series->name }}</a>
+                        @else
+                            <span class="ms-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Free</span>
+                        @endif
                         <p class="mt-1 text-sm text-gray-600">
                             {{ $test->questions_count }} questions · {{ $test->duration_minutes }} min · {{ $test->total_marks }} marks (pass {{ $test->pass_marks }})
                         </p>

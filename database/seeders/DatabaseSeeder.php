@@ -14,13 +14,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Diagram questions write real image files; the test suite seeds often, so it skips them
+        // (DiagramQuestionSeeder has its own test with a fake disk).
+        $diagrams = app()->runningUnitTests() ? [] : [DiagramQuestionSeeder::class];
+
         $this->call([
             UserSeeder::class,
             SubjectSeeder::class,
             TagSeeder::class,
             QuestionSeeder::class,
+            MathQuestionSeeder::class,
+            ...$diagrams,
             TestSeeder::class,
             AttemptSeeder::class,
+            SeriesSeeder::class,
         ]);
     }
 }

@@ -26,6 +26,8 @@ use Random\Randomizer;
  */
 class AttemptService
 {
+    public function __construct(private AccessService $access) {}
+
     /**
      * Start a new attempt, or return the one already in progress (a second "Start" click,
      * or reopening the test in another tab, resumes instead of failing).
@@ -62,6 +64,14 @@ class AttemptService
 
                 if ($used >= $test->max_attempts) {
                     throw new BusinessRuleException("You have used all {$test->max_attempts} attempt(s) for this test.");
+                }
+
+                // Paid series: the student needs that series or an All-Access pass. Checked here,
+                // when STARTING — resuming an attempt already in progress (above) is always allowed.
+                if (! $this->access->canStart($student, $test)) {
+                    throw new BusinessRuleException(
+                        "This test is part of the {$test->series->name} series. Buy the series or an All-Access pass to start it."
+                    );
                 }
 
                 $startedAt = now();

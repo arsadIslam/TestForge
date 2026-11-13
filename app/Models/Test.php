@@ -23,6 +23,7 @@ class Test extends Model
      * - status / published_at: changed only by the publish/archive actions
      */
     protected $fillable = [
+        'test_series_id', // null = free
         'title',
         'slug',
         'description',
@@ -47,6 +48,14 @@ class Test extends Model
             'ends_at' => 'datetime',
             'published_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The paid series this test belongs to; null means the test is free.
+     */
+    public function series(): BelongsTo
+    {
+        return $this->belongsTo(TestSeries::class, 'test_series_id');
     }
 
     public function creator(): BelongsTo

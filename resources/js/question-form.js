@@ -1,6 +1,7 @@
 /**
- * Alpine component for the question create/edit form: add/remove options, mark the
- * correct one(s), and attach an image to any option. Registered in app.js as
+ * Alpine component for the question create/edit form: add/remove options, tick the
+ * correct one(s) — single/multiple choice follows from how many are ticked — and attach
+ * an image to any option. Registered in app.js as
  * Alpine.data('questionForm').
  *
  * The real form fields are inputs rendered from this state
@@ -27,8 +28,7 @@ export const imageProblem = (file) => {
     return null;
 };
 
-export default ({ type, options, min, max, savedImages = {} }) => ({
-    type,
+export default ({ options, min, max, savedImages = {} }) => ({
     min,
     max,
     options: options.map((option) => ({
@@ -43,18 +43,13 @@ export default ({ type, options, min, max, savedImages = {} }) => ({
         preview: null, // object URL of a newly chosen file
     })),
 
-    init() {
-        // Switching multiple → single keeps only the first ticked option.
-        this.$watch('type', (value) => {
-            if (value === 'single') {
-                const first = this.options.findIndex((option) => option.is_correct);
-                this.options.forEach((option, index) => (option.is_correct = index === first));
-            }
-        });
-    },
-
     get correctCount() {
         return this.options.filter((option) => option.is_correct).length;
+    },
+
+    /** Mirrors the server rule (QuestionRules::typeFor): 2+ correct → multiple, else single. */
+    get derivedType() {
+        return this.correctCount > 1 ? 'multiple' : 'single';
     },
 
     get canAdd() {
@@ -84,11 +79,7 @@ export default ({ type, options, min, max, savedImages = {} }) => ({
     },
 
     toggleCorrect(index) {
-        if (this.type === 'single') {
-            this.options.forEach((option, i) => (option.is_correct = i === index));
-        } else {
-            this.options[index].is_correct = !this.options[index].is_correct;
-        }
+        this.options[index].is_correct = !this.options[index].is_correct;
     },
 
     pickImage(option, event) {

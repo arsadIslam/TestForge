@@ -6,6 +6,7 @@ use App\Enums\Difficulty;
 use App\Enums\QuestionType;
 use App\Models\Topic;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -52,7 +53,7 @@ final class QuestionRules
     {
         return [
             'topic_id' => ['required', 'integer', Rule::exists(Topic::class, 'id')],
-            'type' => ['required', Rule::enum(QuestionType::class)],
+            // No 'type': single/multiple is DERIVED from how many options are correct (QuestionService).
             'body' => ['required', 'string', 'max:5000'],
             'explanation' => ['nullable', 'string', 'max:5000'],
             'difficulty' => ['required', Rule::enum(Difficulty::class)],
@@ -84,24 +85,16 @@ final class QuestionRules
 
     /**
      * Checks that span several fields (run from a validator's after() hook):
-     *  - single choice: exactly one correct option; multiple choice: at least one;
+     *  - at least one correct option (1 → single choice, 2+ → multiple choice, derived on save);
      *  - every option needs text or an image;
      *  - no two options with the same text (image-only options are not "duplicates").
      *
      * @param  array<int, array<string, mixed>>  $options
      * @param  array<int, bool>  $existingImages  option id => it already has an image (editing)
      */
-    public static function checkOptions(Validator $validator, ?string $type, array $options, array $existingImages = []): void
+    public static function checkOptions(Validator $validator, array $options, array $existingImages = []): void
     {
-        $correct = collect($options)
-            ->filter(fn ($option): bool => filter_var($option['is_correct'] ?? false, FILTER_VALIDATE_BOOLEAN))
-            ->count();
-
-        if ($type === QuestionType::Single->value && $correct !== 1) {
-            $validator->errors()->add('options', 'A single-choice question needs exactly one correct option.');
-        }
-
-        if ($type === QuestionType::Multiple->value && $correct < 1) {
+        if (self::correctCount($options) < 1) {
             $validator->errors()->add('options', 'Mark at least one option as correct.');
         }
 
@@ -132,6 +125,42 @@ final class QuestionRules
                 $seen[$key] ??= $number;
             }
         }
+    }
+
+    /**
+     * "Tricky, important ,tricky" → ['Tricky', 'important']: trimmed, empty/symbol-only names
+     * dropped, de-duplicated by slug so "Tricky" and "tricky" count once.
+     *
+     * @return list<string>
+     */
+    public static function tagNames(string $list, string $separator = ','): array
+    {
+        return collect(explode($separator, $list))
+            ->map(fn (string $name): string => Str::squish($name))
+            ->filter(fn (string $name): bool => Str::slug($name) !== '')
+            ->unique(fn (string $name): string => Str::slug($name))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $options
+     */
+    public static function correctCount(array $options): int
+    {
+        return collect($options)
+            ->filter(fn ($option): bool => filter_var($option['is_correct'] ?? false, FILTER_VALIDATE_BOOLEAN))
+            ->count();
+    }
+
+    /**
+     * The rule the user asked for: students may tick several options ONLY when several are correct.
+     *
+     * @param  array<int, array<string, mixed>>  $options
+     */
+    public static function typeFor(array $options): QuestionType
+    {
+        return self::correctCount($options) > 1 ? QuestionType::Multiple : QuestionType::Single;
     }
 
     /**

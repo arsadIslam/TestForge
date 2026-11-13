@@ -8,10 +8,12 @@
             <form method="POST" action="{{ route('teacher.questions.update', $question) }}" enctype="multipart/form-data" class="space-y-6 bg-white p-6 shadow-sm sm:rounded-lg">
                 @csrf
                 @method('PUT')
+                {{-- Set when coming from the test builder; the server only honours /teacher/ URLs. --}}
+                <input type="hidden" name="return_to" value="{{ request('return_to') }}">
                 @include('teacher.questions._form')
                 <div class="flex items-center gap-4 border-t pt-6">
                     <x-primary-button>Save changes</x-primary-button>
-                    <a href="{{ route('teacher.questions.show', $question) }}" class="text-sm text-gray-600 underline">Cancel</a>
+                    <a href="{{ str_starts_with((string) request('return_to'), url('/teacher/')) ? request('return_to') : route('teacher.questions.show', $question) }}" class="text-sm text-gray-600 underline">Cancel</a>
                 </div>
             </form>
         </div>

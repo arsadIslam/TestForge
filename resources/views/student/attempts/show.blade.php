@@ -1,15 +1,18 @@
-<x-student-layout>
+<x-focus-layout :title="$attempt->test->title">
     <div x-data="testTaker({ questions: @js($questions), answers: @js($answers), secondsLeft: {{ $secondsLeft }} })" class="pb-12">
 
         {{-- Sticky bar: title, progress, timer --}}
         <div class="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
             <div class="max-w-6xl mx-auto flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-                <div>
+                <div class="flex items-center gap-4">
+                    <x-logo size="sm" :wordmark="false" :animated="false" class="hidden sm:inline-flex" />
+                    <div>
                     <h2 class="font-semibold text-gray-800">{{ $attempt->test->title }}</h2>
                     <p class="text-xs text-gray-500">
                         Attempt {{ $attempt->attempt_no }} ·
                         <span x-text="`${answeredCount} of ${questions.length} answered`"></span>
                     </p>
+                    </div>
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="rounded-md px-3 py-1 font-mono text-xl font-semibold tabular-nums"
@@ -18,12 +21,17 @@
                     <x-primary-button type="button" @click="confirming = true" x-bind:disabled="submitting">Submit</x-primary-button>
                 </div>
             </div>
+            {{-- progress: share of questions answered --}}
+            <div class="h-1 bg-gray-100">
+                <div class="h-1 bg-brand-500 transition-all duration-300" :style="`width: ${questions.length ? answeredCount / questions.length * 100 : 0}%`"></div>
+            </div>
         </div>
 
         <div class="max-w-6xl mx-auto mt-6 grid grid-cols-1 gap-6 px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
 
             {{-- Current question --}}
-            <section class="bg-white p-6 shadow-sm sm:rounded-lg lg:col-span-3">
+            <section class="bg-white p-6 shadow-sm sm:rounded-lg lg:col-span-3" x-ref="questionCard"
+                     x-effect="current; $nextTick(() => renderMath($refs.questionCard))">
                 <div class="flex items-center justify-between text-sm text-gray-500">
                     <span x-text="`Question ${current + 1} of ${questions.length}`"></span>
                     <span>
@@ -31,7 +39,6 @@
                         <template x-if="Number(question.negativeMarks) > 0">
                             <span class="text-red-600" x-text="` / −${question.negativeMarks}`"></span>
                         </template>
-                        · <span x-text="question.type === 'single' ? 'Choose one' : 'Choose all that apply'"></span>
                     </span>
                 </div>
 
@@ -43,8 +50,16 @@
                          class="mt-4 max-h-96 max-w-full rounded-lg border border-gray-200 bg-white object-contain">
                 </template>
 
+                {{-- Single choice (one correct option) → pick one; multiple (2+ correct) → pick all correct ones.
+                     The number of correct options is never revealed. --}}
+                <p class="mt-6 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold"
+                   :class="question.type === 'single' ? 'bg-gray-100 text-gray-700' : 'bg-indigo-100 text-indigo-800'">
+                    <span class="inline-block h-3 w-3 border-2 border-current" :class="question.type === 'single' ? 'rounded-full' : 'rounded-sm'"></span>
+                    <span x-text="question.type === 'single' ? 'Select one answer' : 'Select all correct answers'"></span>
+                </p>
+
                 {{-- Options with pictures are shown as a 2-column grid of cards; text-only options as a list. --}}
-                <div class="mt-6" :class="question.hasOptionImages ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'space-y-3'">
+                <div class="mt-3" :class="question.hasOptionImages ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'space-y-3'">
                     <template x-for="(option, index) in question.options" :key="option.id">
                         <button type="button" @click="select(option.id)" :disabled="locked"
                                 class="flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition disabled:cursor-not-allowed"
@@ -120,12 +135,13 @@
         </div>
 
         {{-- Overlay while submitting (also shown when the timer hits zero) --}}
-        <div x-show="submitting" x-cloak class="fixed inset-0 z-30 flex items-center justify-center bg-white/80">
-            <p class="text-lg font-medium text-gray-700" x-text="remaining === 0 ? 'Time is up — submitting your test…' : 'Submitting…'"></p>
+        <div x-show="submitting" x-cloak class="fixed inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-white/90">
+            <x-logo size="xl" :wordmark="false" loop />
+            <p class="text-lg font-medium text-gray-700" x-text="remaining === 0 ? 'Time is up — submitting your test…' : 'Submitting your test…'"></p>
         </div>
 
         <form x-ref="submitForm" method="POST" action="{{ route('student.attempts.submit', $attempt) }}" class="hidden">
             @csrf
         </form>
     </div>
-</x-student-layout>
+</x-focus-layout>

@@ -4,7 +4,6 @@ namespace App\Http\Requests\Teacher;
 
 use App\Support\QuestionRules;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Validator;
 
 /**
@@ -31,15 +30,8 @@ class StoreQuestionRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        $tagNames = collect(explode(',', (string) $this->input('tags')))
-            ->map(fn (string $name): string => Str::squish($name))
-            ->filter(fn (string $name): bool => Str::slug($name) !== '')
-            ->unique(fn (string $name): string => Str::slug($name))
-            ->values()
-            ->all();
-
         $this->merge([
-            'tag_names' => $tagNames,
+            'tag_names' => QuestionRules::tagNames((string) $this->input('tags')),
             'is_active' => $this->boolean('is_active'),
         ]);
     }
@@ -65,11 +57,11 @@ class StoreQuestionRequest extends FormRequest
                 // all(), not input(): the option images are files, and input() leaves files out.
                 $options = $this->all()['options'] ?? null;
 
-                if (! $this->hasOptionRules() || ! is_array($options) || $validator->errors()->has('type')) {
+                if (! $this->hasOptionRules() || ! is_array($options)) {
                     return;
                 }
 
-                QuestionRules::checkOptions($validator, $this->input('type'), $options, $this->existingOptionImages());
+                QuestionRules::checkOptions($validator, $options, $this->existingOptionImages());
             },
         ];
     }

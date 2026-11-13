@@ -20,6 +20,51 @@
     </x-slot>
 
     <div class="py-8">
+        {{-- ===== Auto-select: random questions by rules, then edit the result below ===== --}}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+            <section class="bg-white shadow-sm sm:rounded-lg"
+                     x-data="testGenerator({ subjects: @js($subjects->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'topics' => $s->topics->map->only('id', 'name')->values()])->values()), maxRules: {{ \App\Http\Requests\Teacher\GenerateTestQuestionsRequest::MAX_RULES }}, oldRules: @js(old('rules')) })">
+                <details @if ($errors->has('rules') || $errors->has('rules.*') || count($items) === 0) open @endif>
+                    <summary class="cursor-pointer px-5 py-4 font-semibold text-gray-800">🎲 Auto-select questions <span class="ms-2 text-sm font-normal text-gray-500">pick random questions by subject, topic and difficulty — then swap, remove or reorder them</span></summary>
+
+                    <form method="POST" action="{{ route('teacher.tests.questions.generate', $test) }}" class="border-t px-5 py-4 space-y-3">
+                        @csrf
+                        <template x-for="(rule, index) in rules" :key="rule.key">
+                            <div class="flex flex-wrap items-center gap-2 text-sm">
+                                <span class="w-6 text-gray-400" x-text="`${index + 1}.`"></span>
+                                <x-select-input class="text-sm" x-bind:name="`rules[${index}][subject_id]`" x-model="rule.subject_id" @change="subjectChanged(rule)" required aria-label="Subject">
+                                    <option value="">Subject…</option>
+                                    <template x-for="subject in subjects" :key="subject.id"><option :value="subject.id" x-text="subject.name"></option></template>
+                                </x-select-input>
+                                <x-select-input class="text-sm" x-bind:name="`rules[${index}][topic_id]`" x-model="rule.topic_id" aria-label="Topic">
+                                    <option value="">Any topic</option>
+                                    <template x-for="topic in topicsFor(rule)" :key="topic.id"><option :value="topic.id" x-text="topic.name"></option></template>
+                                </x-select-input>
+                                <x-select-input class="text-sm" x-bind:name="`rules[${index}][difficulty]`" x-model="rule.difficulty" aria-label="Difficulty">
+                                    <option value="">Any difficulty</option>
+                                    @foreach ($difficulties as $difficulty)
+                                        <option value="{{ $difficulty->value }}">{{ $difficulty->label() }}</option>
+                                    @endforeach
+                                </x-select-input>
+                                <x-text-input type="number" min="1" max="50" class="w-20 text-sm" x-bind:name="`rules[${index}][count]`" x-model.number="rule.count" required aria-label="How many" />
+                                <span class="text-gray-500">questions</span>
+                                <button type="button" @click="remove(index)" x-show="rules.length > 1" class="text-red-600 hover:underline">Remove</button>
+                            </div>
+                        </template>
+
+                        <x-input-error :messages="array_merge($errors->get('rules'), $errors->get('mode'), ...array_values($errors->get('rules.*')))" />
+
+                        <div class="flex flex-wrap items-center gap-4 pt-2 text-sm">
+                            <x-secondary-button @click="add()" x-show="canAdd">+ Add rule</x-secondary-button>
+                            <label class="inline-flex items-center gap-1"><input type="radio" name="mode" value="add" @checked(old('mode', 'add') === 'add') class="text-indigo-600"> Add to current questions</label>
+                            <label class="inline-flex items-center gap-1"><input type="radio" name="mode" value="replace" @checked(old('mode') === 'replace') class="text-indigo-600"> Replace current questions</label>
+                            <x-primary-button class="ms-auto" x-text="`Pick ${total} random question${total === 1 ? '' : 's'}`">Pick random questions</x-primary-button>
+                        </div>
+                    </form>
+                </details>
+            </section>
+        </div>
+
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
 
             {{-- ===== Left: questions in this test (Alpine reorder) ===== --}}
@@ -28,6 +73,18 @@
                     <h3 class="font-semibold text-gray-800">In this test</h3>
                     <span x-show="dirty" x-cloak class="text-xs font-medium text-amber-700">Unsaved order</span>
                 </div>
+
+                @if (count($items))
+                    <div class="flex flex-wrap gap-2 border-b px-5 py-3 text-xs">
+                        @foreach ($composition['byDifficulty'] as $label => $count)
+                            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">{{ $label }}: {{ $count }}</span>
+                        @endforeach
+                        <span class="text-gray-300">|</span>
+                        @foreach ($composition['byTopic'] as $label => $count)
+                            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">{{ $label }}: {{ $count }}</span>
+                        @endforeach
+                    </div>
+                @endif
 
                 <form method="POST" action="{{ route('teacher.tests.questions.reorder', $test) }}">
                     @csrf
@@ -48,6 +105,11 @@
                                             class="rounded px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-30" aria-label="Move up">↑</button>
                                     <button type="button" @click="move(index, 1)" :disabled="index === items.length - 1"
                                             class="rounded px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-30" aria-label="Move down">↓</button>
+                                    <button type="button" @click="swap(item)" title="Swap for another random question (same topic and difficulty)"
+                                            class="rounded px-2 py-1 text-indigo-600 hover:bg-indigo-50" aria-label="Swap">↻</button>
+                                    <template x-if="item.editUrl">
+                                        <a :href="item.editUrl" title="Edit this question" class="rounded px-2 py-1 text-gray-600 hover:bg-gray-100" aria-label="Edit">✎</a>
+                                    </template>
                                     <button type="button" @click="remove(item)"
                                             class="rounded px-2 py-1 text-red-600 hover:bg-red-50" aria-label="Remove">✕</button>
                                 </div>
@@ -64,10 +126,13 @@
                     </div>
                 </form>
 
-                {{-- Lives outside the reorder form (forms can't be nested); questionOrder.remove() sets its action. --}}
+                {{-- Live outside the reorder form (forms can't be nested); questionOrder sets their action. --}}
                 <form x-ref="removeForm" method="POST" class="hidden">
                     @csrf
                     @method('DELETE')
+                </form>
+                <form x-ref="swapForm" method="POST" class="hidden">
+                    @csrf
                 </form>
             </section>
 

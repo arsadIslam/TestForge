@@ -9,7 +9,7 @@
                 <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Users</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     @foreach (\App\Enums\UserRole::cases() as $role)
-                        <x-stat-card :label="str($role->label())->plural()" :value="$usersByRole[$role->value] ?? 0" />
+                        <x-stat-card icon="users" :label="str($role->label())->plural()" :value="$usersByRole[$role->value] ?? 0" />
                     @endforeach
                 </div>
             </section>
@@ -17,10 +17,10 @@
             <section>
                 <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Content</h3>
                 <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <x-stat-card label="Subjects" :value="$counts['subjects']" />
-                    <x-stat-card label="Topics" :value="$counts['topics']" />
-                    <x-stat-card label="Questions" :value="$counts['questions']" />
-                    <x-stat-card label="Attempts" :value="$counts['attempts']" />
+                    <x-stat-card icon="book" label="Subjects" :value="$counts['subjects']" />
+                    <x-stat-card icon="tag" label="Topics" :value="$counts['topics']" />
+                    <x-stat-card icon="question" label="Questions" :value="$counts['questions']" />
+                    <x-stat-card icon="clipboard" label="Attempts" :value="$counts['attempts']" />
                 </div>
             </section>
 
@@ -28,7 +28,7 @@
                 <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Tests</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     @foreach (\App\Enums\TestStatus::cases() as $status)
-                        <x-stat-card :label="$status->label()" :value="$testsByStatus[$status->value] ?? 0" />
+                        <x-stat-card icon="clipboard" :label="$status->label()" :value="$testsByStatus[$status->value] ?? 0" />
                     @endforeach
                 </div>
             </section>

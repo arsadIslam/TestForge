@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Web\Teacher;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teacher\TestRequest;
 use App\Models\Test;
+use App\Models\TestSeries;
 use App\Services\TestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class TestController extends Controller implements HasMiddleware
@@ -34,6 +36,7 @@ class TestController extends Controller implements HasMiddleware
     public function index(Request $request): View
     {
         $tests = $request->user()->tests()
+            ->with('series:id,name')
             ->withCount(['questions', 'attempts'])
             ->latest('id')
             ->paginate(10);
@@ -45,6 +48,7 @@ class TestController extends Controller implements HasMiddleware
     {
         return view('teacher.tests.create', [
             'test' => new Test(['duration_minutes' => 30, 'pass_marks' => 0, 'max_attempts' => 1]),
+            'seriesOptions' => $this->seriesOptions(),
         ]);
     }
 
@@ -58,14 +62,14 @@ class TestController extends Controller implements HasMiddleware
 
     public function show(Test $test): View
     {
-        $test->load(['questions.topic.subject'])->loadCount('attempts');
+        $test->load(['questions.topic.subject', 'series:id,name'])->loadCount('attempts');
 
         return view('teacher.tests.show', ['test' => $test]);
     }
 
     public function edit(Test $test): View
     {
-        return view('teacher.tests.edit', ['test' => $test]);
+        return view('teacher.tests.edit', ['test' => $test, 'seriesOptions' => $this->seriesOptions($test)]);
     }
 
     public function update(TestRequest $request, Test $test, TestService $tests): RedirectResponse
@@ -80,6 +84,20 @@ class TestController extends Controller implements HasMiddleware
         $test->delete(); // soft delete; the policy only allows it for drafts
 
         return redirect()->route('teacher.tests.index')->with('success', "Test \"{$test->title}\" deleted.");
+    }
+
+    /**
+     * Series a teacher may put a test in: the active ones (+ the test's current one).
+     *
+     * @return Collection<int, string>
+     */
+    private function seriesOptions(?Test $test = null): Collection
+    {
+        return TestSeries::query()
+            ->where('is_active', true)
+            ->when($test?->test_series_id, fn ($q, $id) => $q->orWhere('id', $id))
+            ->orderBy('name')
+            ->pluck('name', 'id');
     }
 
     public function publish(Test $test, TestService $tests): RedirectResponse

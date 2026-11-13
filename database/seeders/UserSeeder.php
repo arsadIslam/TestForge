@@ -7,7 +7,8 @@ use Illuminate\Database\Seeder;
 
 /**
  * Demo logins (password for everyone: "password"):
- *   admin@testforge.test, teacher1..3@testforge.test, student1@testforge.test
+ *   admin@testforge.test, teacher1..3@testforge.test, student1@testforge.test (has results),
+ *   student2@testforge.test (fresh: nothing bought, no attempts)
  */
 class UserSeeder extends Seeder
 {
@@ -30,6 +31,12 @@ class UserSeeder extends Seeder
             'email' => 'student1@testforge.test',
         ]);
 
-        User::factory()->student()->count(49)->create();
+        // Has bought nothing and taken no tests: use it to try the paid-series checkout.
+        User::factory()->student()->create([
+            'name' => 'New Student',
+            'email' => 'student2@testforge.test',
+        ]);
+
+        User::factory()->student()->count(48)->create();
     }
 }

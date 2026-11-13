@@ -7,6 +7,18 @@
 </div>
 
 <div>
+    <x-input-label for="test_series_id" value="Series" />
+    <x-select-input id="test_series_id" name="test_series_id" class="mt-1 block w-full sm:w-80">
+        <option value="">Free — anyone can take it</option>
+        @foreach ($seriesOptions as $id => $name)
+            <option value="{{ $id }}" @selected((int) old('test_series_id', $test->test_series_id) === $id)>{{ $name }} (paid)</option>
+        @endforeach
+    </x-select-input>
+    <x-input-error class="mt-2" :messages="$errors->get('test_series_id')" />
+    <p class="mt-1 text-xs text-gray-500">Tests in a paid series can only be started by students who bought it or have an All-Access pass.</p>
+</div>
+
+<div>
     <x-input-label for="description" value="Description (optional)" />
     <textarea id="description" name="description" rows="3" maxlength="5000"
               class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">{{ old('description', $test->description) }}</textarea>

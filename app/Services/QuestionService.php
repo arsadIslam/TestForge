@@ -8,6 +8,7 @@ use App\Models\QuestionOption;
 use App\Models\Tag;
 use App\Models\User;
 use App\Support\QuestionImages;
+use App\Support\QuestionRules;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -106,9 +107,18 @@ class QuestionService
      */
     private function questionAttributes(array $data): array
     {
-        return Arr::only($data, [
-            'topic_id', 'type', 'body', 'explanation', 'difficulty', 'marks', 'negative_marks', 'is_active',
+        $attributes = Arr::only($data, [
+            'topic_id', 'body', 'explanation', 'difficulty', 'marks', 'negative_marks', 'is_active',
         ]);
+
+        // The type is never taken from input: 1 correct option → single (students pick one),
+        // 2+ → multiple (students pick all correct ones). So a "multiple" question with a
+        // single right answer — or a crafted type — is impossible.
+        if (isset($data['options'])) {
+            $attributes['type'] = QuestionRules::typeFor($data['options']);
+        }
+
+        return $attributes;
     }
 
     private function syncQuestionImage(Question $question, array $data, QuestionImages $images): void

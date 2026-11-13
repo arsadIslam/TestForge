@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Schedule;
 // Close attempts whose time ran out (and queue their scoring).
 Schedule::command('attempts:auto-submit')->everyMinute()->withoutOverlapping();
 
+// Delete question-import uploads that were previewed but never confirmed or cancelled.
+Schedule::command('imports:prune')->daily();
+
 // Shared hosting: no long-running worker, so drain the queue once a minute and exit.
 // --max-time keeps each run under a minute so runs never pile up.
 if (config('queue.run_via_scheduler')) {

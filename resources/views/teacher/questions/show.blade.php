@@ -31,7 +31,7 @@
                 </div>
 
                 {{-- {{ }} escapes HTML; whitespace-pre-line keeps the teacher's line breaks --}}
-                <p class="text-lg text-gray-900 whitespace-pre-line">{{ $question->body }}</p>
+                <x-rich-text :text="$question->body" as="p" class="text-lg text-gray-900" />
 
                 <x-question-image :src="$question->image_url" alt="Diagram for this question" />
 
@@ -44,7 +44,7 @@
                         ])>
                             <span class="font-semibold text-gray-500">{{ chr(64 + $loop->iteration) }}.</span>
                             <span class="flex flex-1 flex-col gap-2">
-                                @if ($option->option_text)<span class="whitespace-pre-line">{{ $option->option_text }}</span>@endif
+                                <x-rich-text :text="$option->option_text" as="span" />
                                 <x-question-image :src="$option->image_url" size="md" :alt="'Option '.chr(64 + $loop->iteration)" />
                             </span>
                             @if ($option->is_correct)
@@ -57,7 +57,7 @@
                 @if ($question->explanation)
                     <div class="rounded-md bg-gray-50 p-4">
                         <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Explanation</div>
-                        <p class="mt-1 text-gray-700 whitespace-pre-line">{{ $question->explanation }}</p>
+                        <x-rich-text :text="$question->explanation" as="p" class="mt-1 text-gray-700" />
                     </div>
                 @endif
             </div>

@@ -7,7 +7,7 @@
     <div class="py-12" x-data x-init="setTimeout(() => window.location.reload(), 5000)">
         <div class="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white p-8 text-center shadow-sm sm:rounded-lg">
-                <div class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div>
+                <x-logo size="xl" :wordmark="false" loop class="mx-auto" />
                 <h3 class="mt-4 text-lg font-semibold text-gray-900">Your answers are being marked…</h3>
                 <p class="mt-2 text-sm text-gray-600">This page refreshes by itself. It usually takes a few seconds.</p>
                 <a href="{{ route('student.dashboard') }}" class="mt-6 inline-block text-sm text-gray-600 underline">Back to dashboard</a>
