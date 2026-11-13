@@ -59,6 +59,9 @@
                                         {{ Str::limit($question->body, 90) }}
                                     </a>
                                     <div class="mt-1 flex flex-wrap gap-1">
+                                        @if ($question->image_path)
+                                            <span class="rounded bg-sky-50 px-1.5 text-xs text-sky-700">Image</span>
+                                        @endif
                                         @unless ($question->is_active)
                                             <span class="rounded bg-gray-200 px-1.5 text-xs text-gray-600">Inactive</span>
                                         @endunless

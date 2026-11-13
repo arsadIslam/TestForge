@@ -40,6 +40,7 @@
                                 <span class="w-6 pt-0.5 font-semibold text-gray-400" x-text="`${index + 1}.`"></span>
                                 <div class="flex-1">
                                     <p class="text-gray-900" x-text="item.body"></p>
+                                    <template x-if="item.image"><img :src="item.image" alt="Diagram" class="mt-2 h-12 w-12 rounded border border-gray-200 bg-white object-contain"></template>
                                     <p class="mt-1 text-xs text-gray-500" x-text="`${item.topic} · ${item.difficulty} · +${item.marks} / −${item.negative_marks}`"></p>
                                 </div>
                                 <div class="flex items-center gap-1">
@@ -104,6 +105,7 @@
                                            class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                                     <div class="flex-1">
                                         <p class="text-gray-900">{{ Str::limit($question->body, 110) }}</p>
+                                        <x-question-image :src="$question->image_url" size="thumb" class="mt-2" alt="Diagram" />
                                         <p class="mt-1 text-xs text-gray-500">
                                             {{ $question->topic->subject->name }} › {{ $question->topic->name }} · {{ $question->type->label() }} · +{{ $question->marks }}
                                         </p>

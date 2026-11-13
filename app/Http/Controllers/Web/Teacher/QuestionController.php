@@ -124,13 +124,17 @@ class QuestionController extends Controller implements HasMiddleware
                 'id' => $option->id,
                 'text' => $option->option_text,
                 'is_correct' => $option->is_correct,
+                'image_url' => $option->image_url,
             ])->all()
-            : array_fill(0, 4, ['id' => null, 'text' => '', 'is_correct' => false]);
+            : array_fill(0, 4, ['id' => null, 'text' => '', 'is_correct' => false, 'image_url' => null]);
 
         return [
             'question' => $question,
             'locked' => $question->exists && $question->isLocked(),
             'options' => $options,
+            // id => image URL, looked up by the Alpine form: after a validation error, old('options')
+            // replaces $options and would otherwise forget which saved options have an image.
+            'optionImages' => collect($options)->filter(fn (array $o): bool => $o['id'] !== null)->pluck('image_url', 'id'),
             'tagString' => $question->exists ? $question->tags->pluck('name')->implode(', ') : '',
             'subjects' => Subject::withSortedTopics()->get(),
             'existingTags' => Tag::orderBy('name')->pluck('name'),

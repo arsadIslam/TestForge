@@ -11,32 +11,25 @@ class UpdateQuestionRequest extends StoreQuestionRequest
     private ?bool $locked = null;
 
     /**
+     * Locked question (in a published test): type and options are not validated at all
+     * (the form doesn't send them and QuestionService ignores them). The question's own
+     * image can still change, like its text.
+     *
+     * An option id must belong to the question being edited, so a crafted request
+     * cannot move another question's option.
+     *
      * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         $rules = parent::rules();
 
-        // Locked question: type and options cannot change, so they are not validated
-        // (QuestionService ignores them too).
         if ($this->isLocked()) {
-            return collect($rules)
-                ->reject(fn ($rule, string $field): bool => $field === 'type' || str_starts_with($field, 'options'))
-                ->all();
+            unset($rules['type']);
+
+            return $rules;
         }
 
-        return $rules;
-    }
-
-    /**
-     * An option id must belong to the question being edited, so a crafted request
-     * cannot move another question's option.
-     *
-     * @return array<string, array<int, mixed>>
-     */
-    protected function optionRules(): array
-    {
-        $rules = parent::optionRules();
         $rules['options.*.id'][] = Rule::exists(QuestionOption::class, 'id')
             ->where('question_id', $this->question()->id);
 
@@ -46,6 +39,17 @@ class UpdateQuestionRequest extends StoreQuestionRequest
     protected function hasOptionRules(): bool
     {
         return ! $this->isLocked();
+    }
+
+    /**
+     * @return array<int, bool>
+     */
+    protected function existingOptionImages(): array
+    {
+        return $this->question()->options()
+            ->pluck('image_path', 'id')
+            ->map(fn (?string $path): bool => $path !== null)
+            ->all();
     }
 
     private function isLocked(): bool

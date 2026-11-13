@@ -43,6 +43,7 @@
                             <span class="w-6 font-semibold text-gray-400">{{ $question->pivot->sort_order }}.</span>
                             <div class="flex-1">
                                 <a href="{{ route('teacher.questions.show', $question) }}" class="text-gray-900 hover:text-indigo-600">{{ Str::limit($question->body, 120) }}</a>
+                                <x-question-image :src="$question->image_url" size="thumb" class="mt-2" alt="Diagram" />
                                 <div class="mt-1 text-xs text-gray-500">{{ $question->topic->subject->name }} › {{ $question->topic->name }} · {{ $question->type->label() }}</div>
                             </div>
                             <x-difficulty-badge :difficulty="$question->difficulty" />

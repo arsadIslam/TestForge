@@ -38,7 +38,13 @@
                 {{-- x-text escapes HTML, so question text can never inject markup --}}
                 <p class="mt-4 text-lg text-gray-900 whitespace-pre-line" x-text="question.body"></p>
 
-                <div class="mt-6 space-y-3">
+                <template x-if="question.image">
+                    <img :src="question.image" :alt="`Diagram for question ${current + 1}`"
+                         class="mt-4 max-h-96 max-w-full rounded-lg border border-gray-200 bg-white object-contain">
+                </template>
+
+                {{-- Options with pictures are shown as a 2-column grid of cards; text-only options as a list. --}}
+                <div class="mt-6" :class="question.hasOptionImages ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'space-y-3'">
                     <template x-for="(option, index) in question.options" :key="option.id">
                         <button type="button" @click="select(option.id)" :disabled="locked"
                                 class="flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition disabled:cursor-not-allowed"
@@ -48,7 +54,13 @@
                                   :class="[question.type === 'single' ? 'rounded-full' : 'rounded', isSelected(option.id) ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-400']"
                                   x-text="isSelected(option.id) ? '✓' : ''"></span>
                             <span class="font-semibold text-gray-500" x-text="String.fromCharCode(65 + index) + '.'"></span>
-                            <span class="flex-1 whitespace-pre-line" x-text="option.text"></span>
+                            <span class="flex flex-1 flex-col gap-2">
+                                <span class="whitespace-pre-line" x-show="option.text" x-text="option.text"></span>
+                                <template x-if="option.image">
+                                    <img :src="option.image" :alt="`Option ${String.fromCharCode(65 + index)}`"
+                                         class="max-h-48 max-w-full rounded border border-gray-200 bg-white object-contain">
+                                </template>
+                            </span>
                         </button>
                     </template>
                 </div>

@@ -25,6 +25,32 @@
     <x-input-error class="mt-2" :messages="$errors->get('body')" />
 </div>
 
+{{-- Question diagram/image (optional). Editable even when the question is locked, like its text. --}}
+<div x-data="imagePicker({ savedUrl: @js($question->image_url) })">
+    <x-input-label value="Diagram / image (optional)" />
+    <div class="mt-1 flex flex-wrap items-start gap-4">
+        <template x-if="shown">
+            <img :src="shown" alt="Question image preview" class="max-h-48 rounded-lg border border-gray-200 bg-white object-contain">
+        </template>
+        <div class="flex flex-col gap-2 text-sm">
+            <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50">
+                <input x-ref="file" type="file" name="image" accept="image/png,image/jpeg,image/webp" class="sr-only" @change="pick($event)">
+                <span x-text="shown ? 'Change image' : 'Add image'">Add image</span>
+            </label>
+            <button type="button" x-show="shown" @click="clear()" class="text-left text-red-600 hover:underline">Remove image</button>
+            <span class="text-xs text-gray-500">JPG, PNG or WebP · up to 2 MB</span>
+        </div>
+    </div>
+    <input type="hidden" name="remove_image" :value="remove ? 1 : 0">
+    <x-input-error class="mt-2" :messages="$errors->get('image')" />
+</div>
+
+@if ($errors->any())
+    <p class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        If you had chosen new images, please choose them again — browsers can't keep selected files after an error.
+    </p>
+@endif
+
 @if ($locked)
     {{-- Frozen answer key: shown read-only and NOT submitted. --}}
     <div class="rounded-md border border-amber-200 bg-amber-50 p-4">
@@ -35,8 +61,9 @@
         <p class="mt-3 text-sm font-medium text-gray-700">{{ $question->type->label() }}</p>
         <ol class="mt-2 space-y-1 text-sm">
             @foreach ($options as $option)
-                <li @class(['font-semibold text-green-700' => $option['is_correct']])>
-                    {{ chr(64 + $loop->iteration) }}. {{ $option['text'] }} @if ($option['is_correct']) ✓ @endif
+                <li @class(['flex items-center gap-2', 'font-semibold text-green-700' => $option['is_correct']])>
+                    <span>{{ chr(64 + $loop->iteration) }}. {{ $option['text'] }} @if ($option['is_correct']) ✓ @endif</span>
+                    <x-question-image :src="$option['image_url']" size="thumb" :alt="'Option '.chr(64 + $loop->iteration)" />
                 </li>
             @endforeach
         </ol>
@@ -45,6 +72,7 @@
     <div x-data="questionForm({
             type: @js(old('type', $question->type?->value)),
             options: @js(old('options', $options)),
+            savedImages: @js($optionImages),
             min: {{ $minOptions }},
             max: {{ $maxOptions }},
         })" class="space-y-4">
@@ -67,10 +95,12 @@
 
             <div class="mt-2 space-y-2">
                 <template x-for="(option, index) in options" :key="option.key">
+                    <div class="rounded-md border border-gray-200 p-3" data-option-row>
                     <div class="flex items-center gap-3">
                         {{-- What is actually submitted --}}
                         <input type="hidden" :name="`options[${index}][id]`" :value="option.id ?? ''">
                         <input type="hidden" :name="`options[${index}][is_correct]`" :value="option.is_correct ? 1 : 0">
+                        <input type="hidden" :name="`options[${index}][remove_image]`" :value="option.remove_image ? 1 : 0">
 
                         {{-- UI only (no name, so not submitted): radio for single, checkbox for multiple --}}
                         <input :type="type === 'single' ? 'radio' : 'checkbox'"
@@ -82,13 +112,29 @@
 
                         <span class="w-5 text-sm font-semibold text-gray-500" x-text="String.fromCharCode(65 + index) + '.'"></span>
 
-                        <input type="text" :name="`options[${index}][text]`" x-model="option.text" maxlength="1000" required
-                               placeholder="Option text"
+                        <input type="text" :name="`options[${index}][text]`" x-model="option.text" maxlength="1000"
+                               placeholder="Option text (optional if it has an image)"
                                class="flex-1 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                                :class="option.is_correct && 'border-green-400 bg-green-50'">
 
                         <button type="button" @click="remove(index)" x-show="canRemove"
                                 class="text-sm text-red-600 hover:underline">Remove</button>
+                    </div>
+
+                    {{-- Option image --}}
+                    <div class="mt-2 flex items-center gap-3 ps-14 text-xs">
+                        <template x-if="shownImage(option)">
+                            <img :src="shownImage(option)" :alt="`Option ${String.fromCharCode(65 + index)} image`"
+                                 class="h-16 max-w-[10rem] rounded border border-gray-200 bg-white object-contain">
+                        </template>
+                        <label class="cursor-pointer font-medium text-indigo-600 hover:underline">
+                            <input type="file" class="sr-only" accept="image/png,image/jpeg,image/webp"
+                                   :name="`options[${index}][image]`" @change="pickImage(option, $event)">
+                            <span x-text="shownImage(option) ? 'Change image' : '+ Image'"></span>
+                        </label>
+                        <button type="button" x-show="shownImage(option)" @click="clearImage(option, $event)"
+                                class="text-red-600 hover:underline">Remove image</button>
+                    </div>
                     </div>
                 </template>
             </div>
@@ -100,6 +146,7 @@
 
             {{-- errors for 'options' and every 'options.N.field' --}}
             <x-input-error class="mt-2" :messages="array_merge($errors->get('options'), ...array_values($errors->get('options.*')))" />
+            <p class="mt-1 text-xs text-gray-500">An option can be text, an image, or both. Option images: JPG, PNG or WebP, up to 2 MB.</p>
         </div>
     </div>
 @endif

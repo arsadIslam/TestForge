@@ -43,6 +43,7 @@ class TestQuestionController extends Controller implements HasMiddleware
         $items = $attached->map(fn (Question $question): array => [
             'id' => $question->id,
             'body' => Str::limit($question->body, 110),
+            'image' => $question->image_url,
             'topic' => $question->topic->name,
             'difficulty' => $question->difficulty->label(),
             'marks' => $question->pivot->marks,

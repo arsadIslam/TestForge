@@ -60,6 +60,8 @@
                             ])>{{ ucfirst($item['status']) }} · {{ (float) $item['marks'] > 0 ? '+' : '' }}{{ $item['marks'] }}</span>
                         </div>
 
+                        <x-question-image :src="$question->image_url" class="mt-4" alt="Diagram for this question" />
+
                         <ul class="mt-4 space-y-2 text-sm">
                             @foreach ($question->options as $option)
                                 @php($picked = in_array($option->id, $item['selected'], true))
@@ -70,7 +72,10 @@
                                     'border-gray-200' => ! $picked && ! $option->is_correct,
                                 ])>
                                     <span class="w-5 font-semibold text-gray-500">{{ chr(64 + $loop->iteration) }}.</span>
-                                    <span class="flex-1 whitespace-pre-line">{{ $option->option_text }}</span>
+                                    <span class="flex flex-1 flex-col gap-2">
+                                        @if ($option->option_text)<span class="whitespace-pre-line">{{ $option->option_text }}</span>@endif
+                                        <x-question-image :src="$option->image_url" size="md" :alt="'Option '.chr(64 + $loop->iteration)" />
+                                    </span>
                                     @if ($picked)<span class="text-xs font-medium text-gray-600">Your answer</span>@endif
                                     @if ($option->is_correct)<span class="text-xs font-semibold text-green-700">Correct answer</span>@endif
                                 </li>

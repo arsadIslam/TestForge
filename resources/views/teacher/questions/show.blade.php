@@ -33,6 +33,8 @@
                 {{-- {{ }} escapes HTML; whitespace-pre-line keeps the teacher's line breaks --}}
                 <p class="text-lg text-gray-900 whitespace-pre-line">{{ $question->body }}</p>
 
+                <x-question-image :src="$question->image_url" alt="Diagram for this question" />
+
                 <ol class="space-y-2">
                     @foreach ($question->options as $option)
                         <li @class([
@@ -41,7 +43,10 @@
                             'border-gray-200' => ! $option->is_correct,
                         ])>
                             <span class="font-semibold text-gray-500">{{ chr(64 + $loop->iteration) }}.</span>
-                            <span class="flex-1 whitespace-pre-line">{{ $option->option_text }}</span>
+                            <span class="flex flex-1 flex-col gap-2">
+                                @if ($option->option_text)<span class="whitespace-pre-line">{{ $option->option_text }}</span>@endif
+                                <x-question-image :src="$option->image_url" size="md" :alt="'Option '.chr(64 + $loop->iteration)" />
+                            </span>
                             @if ($option->is_correct)
                                 <span class="text-xs font-semibold text-green-700">Correct</span>
                             @endif

@@ -5,7 +5,9 @@ namespace App\Models;
 use App\Enums\Difficulty;
 use App\Enums\QuestionType;
 use App\Enums\TestStatus;
+use App\Support\QuestionImages;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +43,15 @@ class Question extends Model
             'negative_marks' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Public URL of the image (or null). image_path itself is not mass-assignable:
+     * only QuestionService sets it, after storing the file.
+     */
+    protected function imageUrl(): Attribute
+    {
+        return Attribute::get(fn (): ?string => QuestionImages::url($this->image_path));
     }
 
     public function topic(): BelongsTo

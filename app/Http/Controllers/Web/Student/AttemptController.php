@@ -64,13 +64,16 @@ class AttemptController extends Controller implements HasMiddleware
             'id' => $question->id,
             'type' => $question->type->value,
             'body' => $question->body,
+            'image' => $question->image_url,
             'marks' => $question->pivot->marks,
             'negativeMarks' => $question->pivot->negative_marks,
             'saveUrl' => route('student.attempts.answers.save', [$attempt, $question]),
             'options' => $question->options->map(fn ($option): array => [
                 'id' => $option->id,
                 'text' => $option->option_text,
+                'image' => $option->image_url, // random file name: never hints at the answer
             ])->values(),
+            'hasOptionImages' => $question->options->contains(fn ($option): bool => $option->image_path !== null),
         ])->values();
 
         $answers = $attempt->answers->mapWithKeys(fn ($answer): array => [

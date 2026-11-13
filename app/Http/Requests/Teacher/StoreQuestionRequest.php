@@ -2,19 +2,19 @@
 
 namespace App\Http\Requests\Teacher;
 
-use App\Enums\Difficulty;
-use App\Enums\QuestionType;
-use App\Models\Topic;
+use App\Support\QuestionRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
+/**
+ * The rules themselves live in App\Support\QuestionRules, shared with the CSV importer.
+ */
 class StoreQuestionRequest extends FormRequest
 {
-    public const MIN_OPTIONS = 2;
+    public const MIN_OPTIONS = QuestionRules::MIN_OPTIONS;
 
-    public const MAX_OPTIONS = 6;
+    public const MAX_OPTIONS = QuestionRules::MAX_OPTIONS;
 
     /**
      * Authorization is done by QuestionController's 'can:' middleware.
@@ -50,60 +50,26 @@ class StoreQuestionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'topic_id' => ['required', 'integer', Rule::exists(Topic::class, 'id')],
-            'type' => ['required', Rule::enum(QuestionType::class)],
-            'body' => ['required', 'string', 'max:5000'],
-            'explanation' => ['nullable', 'string', 'max:5000'],
-            'difficulty' => ['required', Rule::enum(Difficulty::class)],
-            'marks' => ['required', 'numeric', 'decimal:0,2', 'min:0.25', 'max:100'],
-            'negative_marks' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'lte:marks'],
-            'is_active' => ['required', 'boolean'],
-            'tags' => ['nullable', 'string', 'max:500'],
-            'tag_names' => ['array', 'max:10'],
-            'tag_names.*' => ['string', 'max:50'],
-            ...$this->optionRules(),
+            ...QuestionRules::question(),
+            ...($this->hasOptionRules() ? QuestionRules::options() : []),
         ];
     }
 
     /**
-     * @return array<string, array<int, mixed>>
-     */
-    protected function optionRules(): array
-    {
-        return [
-            'options' => ['required', 'array', 'min:'.self::MIN_OPTIONS, 'max:'.self::MAX_OPTIONS],
-            'options.*.id' => ['nullable', 'integer'],
-            'options.*.text' => ['required', 'string', 'max:1000', 'distinct:ignore_case'],
-            'options.*.is_correct' => ['required', 'boolean'],
-        ];
-    }
-
-    /**
-     * Rules that span several fields: how many options are marked correct depends on the type.
-     *
      * @return array<int, callable>
      */
     public function after(): array
     {
         return [
             function (Validator $validator): void {
-                $options = $this->input('options');
+                // all(), not input(): the option images are files, and input() leaves files out.
+                $options = $this->all()['options'] ?? null;
 
                 if (! $this->hasOptionRules() || ! is_array($options) || $validator->errors()->has('type')) {
                     return;
                 }
 
-                $correct = collect($options)
-                    ->filter(fn ($option): bool => filter_var($option['is_correct'] ?? false, FILTER_VALIDATE_BOOLEAN))
-                    ->count();
-
-                if ($this->input('type') === QuestionType::Single->value && $correct !== 1) {
-                    $validator->errors()->add('options', 'A single-choice question needs exactly one correct option.');
-                }
-
-                if ($this->input('type') === QuestionType::Multiple->value && $correct < 1) {
-                    $validator->errors()->add('options', 'Mark at least one option as correct.');
-                }
+                QuestionRules::checkOptions($validator, $this->input('type'), $options, $this->existingOptionImages());
             },
         ];
     }
@@ -114,16 +80,21 @@ class StoreQuestionRequest extends FormRequest
     }
 
     /**
+     * Option id => it already has an image. A brand-new question has none.
+     *
+     * @return array<int, bool>
+     */
+    protected function existingOptionImages(): array
+    {
+        return [];
+    }
+
+    /**
      * @return array<string, string>
      */
     public function messages(): array
     {
-        return [
-            'options.min' => 'Add at least :min options.',
-            'options.max' => 'A question can have at most :max options.',
-            'options.*.text.distinct' => 'Two options have the same text.',
-            'negative_marks.lte' => 'Negative marks cannot be more than the marks for a correct answer.',
-        ];
+        return QuestionRules::messages();
     }
 
     /**
@@ -131,10 +102,6 @@ class StoreQuestionRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return [
-            'topic_id' => 'topic',
-            'options.*.text' => 'option text',
-            'tag_names.*' => 'tag',
-        ];
+        return QuestionRules::attributes();
     }
 }
