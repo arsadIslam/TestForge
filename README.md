@@ -1,3 +1,8 @@
+## Contributing
+
+Contributions and suggestions are welcome.
+Please describe proposed changes clearly and test them before submitting a pull request.
+
 # TestForge — online exam & test-series platform
 
 Teachers build question banks — with diagrams, image options and LaTeX maths — import them in bulk from
